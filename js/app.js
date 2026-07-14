@@ -4,6 +4,7 @@ let contadorId = parseInt(localStorage.getItem('contadorId')) || 1;
 let mapa = null;
 let marcadores = {};
 let rutasPolylines = {};
+let rutaSeleccionada = null;
 const coordenadasCiudades = {};
 let distanciaCache = {};
 
@@ -118,6 +119,7 @@ function initMapa() {
         attribution: '&copy; OpenStreetMap, &copy; CARTO',
         maxZoom: 19,
     }).addTo(mapa);
+    mapa.on('click', function() { deseleccionarRuta(); });
 }
 
 function colorEstado(estado) {
@@ -158,6 +160,66 @@ function crearIconoOrigen() {
         iconAnchor: [14, 14],
         popupAnchor: [0, -16],
     });
+}
+
+function enfocarRuta(id) {
+    if (!mapa) return;
+
+    Object.keys(rutasPolylines).forEach(key => {
+        const poly = rutasPolylines[key];
+        if (!poly) return;
+        if (Number(key) === id) return;
+        poly.setStyle({ weight: 2, opacity: 0.25 });
+    });
+
+    Object.keys(marcadores).forEach(key => {
+        if (String(key).includes('_origen')) return;
+        const m = marcadores[key];
+        if (!m) return;
+        if (Number(key) === id) return;
+        m.setOpacity(0.3);
+    });
+
+    const poly = rutasPolylines[id];
+    if (poly) {
+        poly.setStyle({ weight: 6, opacity: 1 });
+        poly.bringToFront();
+        mapa.fitBounds(poly.getBounds(), { padding: [50, 50], maxZoom: 8 });
+        rutaSeleccionada = id;
+
+        const envio = envios.find(e => e.id === id);
+        if (envio && marcadores[id]) {
+            marcadores[id].openPopup();
+        }
+
+        if (envio && envio.origen && marcadores[id + '_origen']) {
+            marcadores[id + '_origen'].setOpacity(1);
+        }
+    }
+}
+
+function deseleccionarRuta() {
+    if (!mapa || rutaSeleccionada === null) return;
+
+    Object.keys(rutasPolylines).forEach(key => {
+        const poly = rutasPolylines[key];
+        if (!poly) return;
+        const envio = envios.find(e => e.id === Number(key));
+        if (envio) {
+            const w = envio.estado === 'En Transito' ? 4 : 3;
+            poly.setStyle({ weight: w, opacity: 0.8 });
+        }
+    });
+
+    Object.keys(marcadores).forEach(key => {
+        if (String(key).includes('_origen')) {
+            marcadores[key].setOpacity(1);
+        } else {
+            marcadores[key].setOpacity(1);
+        }
+    });
+
+    rutaSeleccionada = null;
 }
 
 async function renderMapa() {
@@ -212,7 +274,7 @@ async function renderMapa() {
                     const lineaColor = e.estado === 'En Transito' ? '#a78bfa' : e.estado === 'Pendiente' ? '#fbbf24' : '#34d399';
                     const polyline = L.polyline(ruta.coordenadas, {
                         color: lineaColor,
-                        weight: 3,
+                        weight: e.estado === 'En Transito' ? 4 : 3,
                         opacity: 0.8,
                         dashArray: e.estado === 'Pendiente' ? '8, 8' : null,
                     }).addTo(mapa);
@@ -306,6 +368,7 @@ function renderTabla() {
     }
     tbody.innerHTML = envios.map(e => {
         const dist = e._distancia ? formatoDistancia(e._distancia) : '-';
+        const tieneRuta = e.origen && coordsParaCiudad(e.origen) && coordsParaCiudad(e.destino);
         return `
         <tr>
             <td>#${String(e.id).padStart(4, '0')}</td>
@@ -317,6 +380,7 @@ function renderTabla() {
             <td>${e.peso} kg</td>
             <td><span class="badge ${claseBadge(e.estado)}">${e.estado}</span></td>
             <td class="acciones">
+                ${tieneRuta ? `<button class="btn-sm btn-detalle" onclick="enfocarRuta(${e.id})">Detalle</button>` : ''}
                 <button class="btn-sm" onclick="cambiarEstado(${e.id})">Cambiar</button>
                 <button class="btn-sm eliminar" onclick="eliminarEnvio(${e.id})">X</button>
             </td>
@@ -356,7 +420,7 @@ function renderRutas() {
     contenedor.innerHTML = activos.slice(0, 5).map(e => {
         const dist = e._distancia ? formatoDistancia(e._distancia) : '';
         return `
-        <div class="ruta">
+        <div class="ruta ruta-clickable" onclick="enfocarRuta(${e.id})">
             <div class="ruta-dot" style="background:#a78bfa"></div>
             <span class="ruta-destino">${e.origen || '?'} → ${e.destino}</span>
             <span class="ruta-fecha">${dist}</span>

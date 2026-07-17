@@ -320,11 +320,56 @@
         const osmAttrib = '© OpenStreetMap, © CARTO';
         const tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
+        const argentinaBounds = L.latLngBounds(
+            L.latLng(-55.1, -73.6),  // Sur-Oeste (Tierra del Fuego)
+            L.latLng(-21.8, -53.6)   // Norte-Este (Misiones)
+        );
+        const mapOpts = {
+            zoomControl: true,
+            maxBounds: argentinaBounds,
+            maxBoundsViscosity: 1.0,
+            minZoom: 3,
+            maxZoom: 18,
+            worldCopyJump: false
+        };
+
+        const argStyle = {
+            color: '#38bdf8',
+            weight: 1.2,
+            opacity: 0.6,
+            fillColor: '#0e1726',
+            fillOpacity: 0.15
+        };
+        const argLabelStyle = {
+            className: 'argentina-province-label',
+            direction: 'center',
+            permanent: true,
+            offset: [0, 0],
+            interactive: false
+        };
+
+        function onEachProvince(layer) {
+            layer.bindTooltip(layer.feature.properties.name, argLabelStyle);
+        }
+
+        function addArgentinaOverlay(map) {
+            fetch('data/argentina-provinces.geojson')
+                .then(r => r.json())
+                .then(geo => {
+                    L.geoJSON(geo, {
+                        style: () => argStyle,
+                        onEachFeature: (_f, layer) => onEachProvince(layer)
+                    }).addTo(map);
+                })
+                .catch(err => console.error('Error cargando provincias:', err));
+        }
+
         // 1. Mapa Full (Tab principal de Mapa)
         if (!mapaFull && document.getElementById('mapa')) {
             try {
-                mapaFull = L.map('mapa', { zoomControl: true }).setView([-38.4, -63.6], 4);
+                mapaFull = L.map('mapa', mapOpts).setView([-38.4, -63.6], 4);
                 L.tileLayer(tileUrl, { attribution: osmAttrib, maxZoom: 19 }).addTo(mapaFull);
+                addArgentinaOverlay(mapaFull);
             } catch (err) {
                 console.error(err);
             }
@@ -333,8 +378,9 @@
         // 2. Mapa Inline (Tab Nueva Ruta - Desktop)
         if (!mapaInline && document.getElementById('mapa-inline')) {
             try {
-                mapaInline = L.map('mapa-inline', { zoomControl: true }).setView([-38.4, -63.6], 4);
+                mapaInline = L.map('mapa-inline', mapOpts).setView([-38.4, -63.6], 4);
                 L.tileLayer(tileUrl, { attribution: osmAttrib, maxZoom: 19 }).addTo(mapaInline);
+                addArgentinaOverlay(mapaInline);
             } catch (err) {
                 console.error(err);
             }

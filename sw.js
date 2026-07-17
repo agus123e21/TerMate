@@ -1,7 +1,7 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v1';
+const CACHE_NAME = 'termate-v2';
 const TILE_CACHE = 'termate-tiles-v1';
 const API_CACHE = 'termate-api-v1';
 
@@ -11,6 +11,7 @@ const CORE_ASSETS = [
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './data/argentina-provinces.geojson',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',

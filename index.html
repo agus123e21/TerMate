@@ -2,103 +2,397 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Logistica</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#070b12">
+    <meta name="description" content="Gestión de rutas para camiones en Argentina. Funciona sin internet.">
+    <title>FleteAR — Gestión de Rutas</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-    <header>
-        <h1>Control de Logistica</h1>
-        <span id="fecha-actual"></span>
-    </header>
 
-    <div class="container">
-        <div class="kpis">
-            <div class="kpi total">
-                <h3>Total Envios</h3>
-                <div class="valor" id="kpi-total">0</div>
-            </div>
-            <div class="kpi pendiente">
-                <h3>Pendientes</h3>
-                <div class="valor" id="kpi-pendiente">0</div>
-            </div>
-            <div class="kpi transito">
-                <h3>En Transito</h3>
-                <div class="valor" id="kpi-transito">0</div>
-            </div>
-            <div class="kpi entregado">
-                <h3>Entregados</h3>
-                <div class="valor" id="kpi-entregado">0</div>
-            </div>
+<!-- ═══════════════════════════════════════════
+     SIDEBAR — visible en desktop
+═══════════════════════════════════════════════ -->
+<aside id="sidebar">
+    <div class="sidebar-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="11" width="15" height="10" rx="1"/>
+            <path d="M16 11l4 3v7h-4V11z"/>
+            <circle cx="5.5" cy="21" r="1.5"/>
+            <circle cx="18.5" cy="21" r="1.5"/>
+            <path d="M1 8h9M1 5h6"/>
+        </svg>
+        <span class="brand-name">FleteAR</span>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+        <button class="sidebar-btn active" data-tab="nueva-ruta" id="snav-nueva-ruta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            Nueva Ruta
+        </button>
+        <button class="sidebar-btn" data-tab="mis-viajes" id="snav-mis-viajes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            Mis Viajes
+        </button>
+        <button class="sidebar-btn" data-tab="mapa" id="snav-mapa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+                <line x1="9" y1="3" x2="9" y2="18"/>
+                <line x1="15" y1="6" x2="15" y2="21"/>
+            </svg>
+            Mapa
+        </button>
+    </nav>
+
+    <div class="sidebar-footer">
+        <div id="indicador-conexion-sidebar" class="conexion-pill online">
+            <span class="conexion-dot"></span>
+            <span class="conexion-texto">Online</span>
         </div>
+        <button id="btn-perfil-camion" class="sidebar-settings-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            Ajustes del Camión
+        </button>
+    </div>
+</aside>
 
-        <div class="secciones">
-            <div class="panel">
-                <h2>Nuevo Envio</h2>
-                <form id="form-envio">
-                    <label>Origen</label>
-                    <input type="text" id="origen" placeholder="Ciudad de origen" required>
-                    <label>Destino</label>
-                    <input type="text" id="destino" placeholder="Ciudad de destino" required>
-                    <label>Producto</label>
-                    <input type="text" id="producto" placeholder="Nombre del producto" required>
-                    <label>Cantidad</label>
-                    <input type="number" id="cantidad" placeholder="Unidades" min="1" required>
-                    <label>Peso (kg)</label>
-                    <input type="number" id="peso" placeholder="Peso en kg" min="0.1" step="0.1" required>
-                    <label>Estado</label>
-                    <select id="estado">
-                        <option value="Pendiente">Pendiente</option>
-                        <option value="En Transito">En Transito</option>
-                        <option value="Entregado">Entregado</option>
-                    </select>
-                    <button type="submit">Agregar Envio</button>
-                </form>
-            </div>
+<!-- ═══════════════════════════════════════════
+     HEADER MOBILE — visible solo en móvil
+═══════════════════════════════════════════════ -->
+<header id="app-header">
+    <div class="header-brand">
+        <svg class="brand-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="11" width="15" height="10" rx="1"/>
+            <path d="M16 11l4 3v7h-4V11z"/>
+            <circle cx="5.5" cy="21" r="1.5"/>
+            <circle cx="18.5" cy="21" r="1.5"/>
+        </svg>
+        <span class="brand-name-sm">FleteAR</span>
+    </div>
+    <div class="header-actions">
+        <span id="indicador-conexion" class="conexion-pill online">
+            <span class="conexion-dot"></span>
+            <span class="conexion-texto">Online</span>
+        </span>
+        <button id="btn-perfil-camion-mobile" class="btn-header-icon" aria-label="Ajustes del camión">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+        </button>
+    </div>
+</header>
 
-            <div class="panel">
-                <h2>Volumen por Estado</h2>
-                <div class="grafico" id="grafico-barras"></div>
-            </div>
+<!-- ═══════════════════════════════════════════
+     CONTENIDO PRINCIPAL
+═══════════════════════════════════════════════ -->
+<main id="app-main">
 
-            <div class="panel">
-                <h2>Rutas Activas</h2>
-                <div id="lista-rutas"></div>
-            </div>
-
-            <div class="panel panel-mapa">
-                <h2>Mapa de Operaciones</h2>
-                <div id="mapa" class="mapa-real"></div>
-            </div>
+    <!-- KPIs — siempre visibles en desktop, en tab nueva-ruta en mobile -->
+    <div id="kpis-bar" class="kpis-bar">
+        <div class="kpi-card">
+            <span class="kpi-label">Pendientes</span>
+            <span class="kpi-value amber" id="kpi-num-pendiente">0</span>
         </div>
-
-        <div class="panel" style="margin-top: 1.5rem;">
-            <h2>Registro de Envios</h2>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Origen</th>
-                            <th>Destino</th>
-                            <th>Distancia</th>
-                            <th>Producto</th>
-                            <th>Cantidad</th>
-                            <th>Peso</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-envios"></tbody>
-                </table>
-            </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-card">
+            <span class="kpi-label">En Ruta</span>
+            <span class="kpi-value blue" id="kpi-num-transito">0</span>
+        </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-card">
+            <span class="kpi-label">Entregados</span>
+            <span class="kpi-value green" id="kpi-num-entregado">0</span>
         </div>
     </div>
 
-    <footer>Sistema de Control Logistico v1.0</footer>
+    <!-- ── TAB: NUEVA RUTA ────────────────────────────────── -->
+    <section id="tab-nueva-ruta" class="tab-pane active">
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/app.js"></script>
+        <div class="pane-cols">
+
+            <!-- Columna izquierda: formulario -->
+            <div class="pane-col-form">
+                <div class="section-header">
+                    <h2 id="form-titulo" class="section-title">Nueva Ruta</h2>
+                </div>
+
+                <form id="form-envio" novalidate class="route-form">
+
+                    <div class="field-block">
+                        <label class="field-label" for="origen">Origen</label>
+                        <div class="input-with-indicator">
+                            <span class="route-dot route-dot--start"></span>
+                            <div class="autocomplete-wrap">
+                                <input type="text" id="origen" class="field-input"
+                                    placeholder="Dirección completa de carga"
+                                    required autocomplete="off" inputmode="text">
+                                <ul id="sugerencias-origen" class="suggestions-list" role="listbox"></ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="route-connector">
+                        <span class="connector-line"></span>
+                    </div>
+
+                    <div class="field-block">
+                        <label class="field-label" for="destino">Destino</label>
+                        <div class="input-with-indicator">
+                            <span class="route-dot route-dot--end"></span>
+                            <div class="autocomplete-wrap">
+                                <input type="text" id="destino" class="field-input"
+                                    placeholder="Dirección completa de descarga"
+                                    required autocomplete="off" inputmode="text">
+                                <ul id="sugerencias-destino" class="suggestions-list" role="listbox"></ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="field-block">
+                        <label class="field-label" for="producto">Descripción de la carga</label>
+                        <input type="text" id="producto" class="field-input"
+                            placeholder="Ej: Granos, materiales de construcción"
+                            required autocomplete="off">
+                    </div>
+
+                    <div class="fields-row">
+                        <div class="field-block">
+                            <label class="field-label" for="peso-carga">Peso carga (tn)</label>
+                            <input type="number" id="peso-carga" class="field-input"
+                                placeholder="0.0" min="0" step="0.1" inputmode="decimal">
+                        </div>
+                        <div class="field-block">
+                            <label class="field-label" for="estado">Estado</label>
+                            <select id="estado" class="field-input">
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="En Transito">En Tránsito</option>
+                                <option value="Entregado">Entregado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-submit-envio" class="btn-primary">
+                        <span id="btn-submit-texto">Calcular Mejor Ruta</span>
+                        <span id="btn-submit-loader" class="spinner hidden" aria-hidden="true"></span>
+                    </button>
+
+                    <button type="button" id="btn-cancelar-edicion" class="btn-ghost hidden">
+                        Cancelar edición
+                    </button>
+                </form>
+
+                <!-- Resultado de la ruta -->
+                <div id="resultado-ruta" class="result-card hidden">
+                    <div class="result-header">
+                        <span class="result-label">Ruta calculada</span>
+                        <button id="btn-ver-mapa-resultado" class="btn-link">Ver en mapa</button>
+                    </div>
+                    <div class="result-metrics">
+                        <div class="result-metric">
+                            <span class="result-metric-val" id="res-distancia">—</span>
+                            <span class="result-metric-lbl">Distancia</span>
+                        </div>
+                        <div class="result-metric-sep"></div>
+                        <div class="result-metric">
+                            <span class="result-metric-val" id="res-tiempo">—</span>
+                            <span class="result-metric-lbl">Tiempo est.</span>
+                        </div>
+                        <div class="result-metric-sep"></div>
+                        <div class="result-metric">
+                            <span class="result-metric-val" id="res-fuel">—</span>
+                            <span class="result-metric-lbl">Combustible</span>
+                        </div>
+                    </div>
+                    <div id="res-advertencias" class="result-warning hidden"></div>
+                </div>
+            </div>
+
+            <!-- Columna derecha: mapa inline (solo desktop) -->
+            <div class="pane-col-map" id="mapa-inline-wrap">
+                <div id="mapa-inline" class="map-inline" aria-label="Vista previa de ruta"></div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ── TAB: MIS VIAJES ───────────────────────────────── -->
+    <section id="tab-mis-viajes" class="tab-pane">
+        <div class="section-header">
+            <h2 class="section-title">Mis Viajes</h2>
+            <div class="header-controls">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="search" id="filtro-buscar" class="search-input"
+                        placeholder="Buscar por destino o carga" inputmode="search">
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-bar" role="group" aria-label="Filtrar por estado">
+            <button class="filter-btn active" data-estado="todos">Todos</button>
+            <button class="filter-btn" data-estado="Pendiente">Pendiente</button>
+            <button class="filter-btn" data-estado="En Transito">En Ruta</button>
+            <button class="filter-btn" data-estado="Entregado">Entregado</button>
+        </div>
+
+        <div id="lista-viajes" class="trips-grid"></div>
+    </section>
+
+    <!-- ── TAB: MAPA ─────────────────────────────────────── -->
+    <section id="tab-mapa" class="tab-pane tab-pane--map">
+        <div id="mapa" class="map-full" aria-label="Mapa de operaciones"></div>
+    </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════
+     BOTTOM NAV — visible solo en móvil
+═══════════════════════════════════════════════ -->
+<nav id="bottom-nav" aria-label="Navegación">
+    <button class="nav-btn active" data-tab="nueva-ruta" id="nav-nueva-ruta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+        <span>Nueva Ruta</span>
+    </button>
+    <button class="nav-btn" data-tab="mis-viajes" id="nav-mis-viajes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        <span>Viajes</span>
+    </button>
+    <button class="nav-btn" data-tab="mapa" id="nav-mapa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+            <line x1="9" y1="3" x2="9" y2="18"/>
+            <line x1="15" y1="6" x2="15" y2="21"/>
+        </svg>
+        <span>Mapa</span>
+    </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     MODAL: AJUSTES DEL CAMIÓN
+═══════════════════════════════════════════════ -->
+<div id="modal-perfil" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-perfil-titulo">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2 id="modal-perfil-titulo" class="modal-title">Perfil del Vehículo</h2>
+            <button id="btn-cerrar-perfil" class="modal-close" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <p class="modal-desc">Estas dimensiones se usan para calcular rutas aptas para tu camión.</p>
+
+        <form id="form-perfil">
+            <div class="form-section-label">Dimensiones y peso</div>
+            <div class="fields-row">
+                <div class="field-block">
+                    <label class="field-label" for="camion-peso">Peso máximo (tn)</label>
+                    <input type="number" id="camion-peso" class="field-input" placeholder="20" min="1" max="60" step="0.5" inputmode="decimal">
+                </div>
+                <div class="field-block">
+                    <label class="field-label" for="camion-alto">Altura (m)</label>
+                    <input type="number" id="camion-alto" class="field-input" placeholder="4.0" min="1" max="5" step="0.1" inputmode="decimal">
+                </div>
+            </div>
+            <div class="fields-row">
+                <div class="field-block">
+                    <label class="field-label" for="camion-largo">Longitud (m)</label>
+                    <input type="number" id="camion-largo" class="field-input" placeholder="18" min="3" max="30" step="0.5" inputmode="decimal">
+                </div>
+                <div class="field-block">
+                    <label class="field-label" for="camion-ancho">Ancho (m)</label>
+                    <input type="number" id="camion-ancho" class="field-input" placeholder="2.5" min="1" max="3" step="0.1" inputmode="decimal">
+                </div>
+            </div>
+            <div class="form-section-label">Consumo estimado (L/100km)</div>
+            <div class="fields-row">
+                <div class="field-block">
+                    <label class="field-label" for="camion-consumo-vacio">Consumo Vacío</label>
+                    <input type="number" id="camion-consumo-vacio" class="field-input" placeholder="25" min="5" max="100" step="1" inputmode="decimal">
+                </div>
+                <div class="field-block">
+                    <label class="field-label" for="camion-consumo-cargado">Consumo Cargado</label>
+                    <input type="number" id="camion-consumo-cargado" class="field-input" placeholder="38" min="5" max="100" step="1" inputmode="decimal">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn-primary">Guardar Perfil</button>
+                <button type="button" id="btn-cerrar-perfil-2" class="btn-ghost">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MODAL: DETALLE DE VIAJE
+═══════════════════════════════════════════════ -->
+<div id="modal-detalle" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-detalle-titulo">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2 id="modal-detalle-titulo" class="modal-title">Detalle del Viaje</h2>
+            <button id="btn-cerrar-detalle" class="modal-close" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="detalle-contenido" class="detail-rows"></div>
+
+        <div class="modal-actions detail-actions">
+            <button id="btn-detalle-ver-mapa" class="btn-primary">Ver en mapa</button>
+            <button id="btn-detalle-estado" class="btn-secondary">Cambiar estado</button>
+            <button id="btn-detalle-editar" class="btn-secondary">Editar</button>
+            <button id="btn-detalle-eliminar" class="btn-danger">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toasts -->
+<div id="toast-container" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

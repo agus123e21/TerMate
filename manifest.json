@@ -1,0 +1,25 @@
+{
+  "name": "FleteAR — Gestión de Camiones",
+  "short_name": "FleteAR",
+  "description": "Gestión de rutas y envíos para camiones en Argentina. Funciona sin internet.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#38bdf8",
+  "orientation": "portrait-primary",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

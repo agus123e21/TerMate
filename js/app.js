@@ -459,18 +459,10 @@
                 todosCoords.push(e.coordsOrigen);
 
                 if (e.coordsRuta?.length > 0) {
-                    const w = e.estado === 'En Transito' ? 6 : 4;
-                    const polyBorde = L.polyline(e.coordsRuta, {
-                        color: '#ffffff',
-                        weight: w + 5,
-                        opacity: 0.85,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                    }).addTo(instanciaMapa);
                     const poly = L.polyline(e.coordsRuta, {
-                        color,
-                        weight: w,
-                        opacity: 1,
+                        color: '#38bdf8',
+                        weight: 5,
+                        opacity: 0.45,
                         lineCap: 'round',
                         lineJoin: 'round',
                         dashArray: e.estado === 'Pendiente' ? '12, 8' : null
@@ -480,8 +472,7 @@
                         + (e.producto ? `<div class="popup-linea">Carga: ${e.producto}</div>` : '')
                         + (e.distancia ? `<div class="popup-linea">Distancia: ${formatoDistancia(e.distancia)}</div>` : '');
                     poly.bindPopup(rutaPopup);
-                    polyBorde.bindPopup(rutaPopup);
-                    refPolylines[e.id] = L.featureGroup([polyBorde, poly]);
+                    refPolylines[e.id] = poly;
                 }
 
                 if (e.coordsRuta?.length > 0) {

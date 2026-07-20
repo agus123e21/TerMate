@@ -1254,12 +1254,13 @@
 
         const blob = new Blob([html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
-        const win = window.open(url, '_blank');
-        if (win) {
-            win.addEventListener('load', () => {
-                setTimeout(() => { win.print(); }, 400);
-            });
-        }
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `comprobante-ruta-${String(e.id).padStart(4,'0')}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     // ═══════════════════════════════════════════════════════════

@@ -663,6 +663,7 @@
                     <span>${cam.nombre}</span>
                     <span class="viaje-distancia" style="font-size:0.7rem;opacity:0.7;margin-left:auto">${cam.patente || ''}</span>
                 </div>
+                ${cam.camionero ? `<div class="viaje-meta"><span class="viaje-carga">Camionero: ${cam.camionero}</span></div>` : ''}
                 <div class="viaje-meta">
                     <span class="viaje-carga">${cam.peso} tn</span>
                     <span class="viaje-distancia">${cam.largo}m x ${cam.ancho}m</span>
@@ -731,6 +732,7 @@
                 e.distancia ? ['Consumo estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId)] : null,
                 ['Estado', e.estado],
                 e.camionId ? ['Camion', `${(camiones.find(c => c.id === e.camionId) || {}).nombre || 'N/A'} ${(camiones.find(c => c.id === e.camionId) || {}).patente ? '(' + (camiones.find(c => c.id === e.camionId)).patente + ')' : ''}`] : ['Camion', '<em style="opacity:0.5">Sin asignar</em> <button id="btn-detalle-asignar-camion" class="btn-link" style="margin-left:6px">Asignar</button>'],
+                e.camionId && (camiones.find(c => c.id === e.camionId) || {}).camionero ? ['Camionero', (camiones.find(c => c.id === e.camionId)).camionero] : null,
                 e.cliente ? ['Cliente', e.cliente] : null,
                 e.remito ? ['N° Remito', e.remito] : null
             ].filter(Boolean).map(([k, v]) => 
@@ -894,6 +896,7 @@
             document.getElementById('cam-id').value = id;
             document.getElementById('cam-nombre').value = camion.nombre;
             document.getElementById('cam-patente').value = camion.patente || '';
+            document.getElementById('cam-camionero').value = camion.camionero || '';
             document.getElementById('cam-peso').value = camion.peso;
             document.getElementById('cam-alto').value = camion.alto;
             document.getElementById('cam-largo').value = camion.largo;
@@ -955,6 +958,7 @@
             const datos = {
                 nombre,
                 patente,
+                camionero:    document.getElementById('cam-camionero').value.trim(),
                 peso:         get('cam-peso') || 20,
                 alto:         get('cam-alto') || 4.0,
                 largo:        get('cam-largo') || 18,

@@ -662,6 +662,7 @@
             <div class="camion-card viaje-card pendiente" data-id="${cam.id}" role="button" tabindex="0">
                 <div class="viaje-ruta">
                     <span>${cam.nombre}</span>
+                    <span class="viaje-distancia" style="font-size:0.7rem;opacity:0.7;margin-left:auto">${cam.patente || ''}</span>
                 </div>
                 <div class="viaje-meta">
                     <span class="viaje-carga">${cam.peso} tn</span>
@@ -681,7 +682,7 @@
         if (!sel) return;
         const prev = sel.value;
         sel.innerHTML = '<option value="">-- Seleccionar camion --</option>' +
-            camiones.map(c => `<option value="${c.id}">${c.nombre} (${c.peso} tn)</option>`).join('');
+            camiones.map(c => `<option value="${c.id}">${c.nombre} ${c.patente ? '(' + c.patente + ')' : ''}</option>`).join('');
         if (prev && camiones.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
@@ -726,6 +727,7 @@
                 e.distancia ? ['Consumo estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId)] : null,
                 ['Estado', e.estado],
                 e.camionId ? ['Camion', (camiones.find(c => c.id === e.camionId) || {}).nombre || 'N/A'] : null,
+                e.camionId ? ['Patente', (camiones.find(c => c.id === e.camionId) || {}).patente || 'N/A'] : null,
                 e.camionero ? ['Camionero', e.camionero] : null,
                 e.celular ? ['Celular', e.celular] : null,
                 e.gmail ? ['Gmail', e.gmail] : null,
@@ -891,6 +893,7 @@
             document.getElementById('modal-camion-titulo').textContent = 'Editar Camion';
             document.getElementById('cam-id').value = id;
             document.getElementById('cam-nombre').value = camion.nombre;
+            document.getElementById('cam-patente').value = camion.patente || '';
             document.getElementById('cam-peso').value = camion.peso;
             document.getElementById('cam-alto').value = camion.alto;
             document.getElementById('cam-largo').value = camion.largo;
@@ -943,6 +946,7 @@
             e.preventDefault();
             const id = document.getElementById('cam-id').value;
             const nombre = document.getElementById('cam-nombre').value.trim();
+            const patente = document.getElementById('cam-patente').value.trim().toUpperCase();
             const get = id => parseFloat(document.getElementById(id)?.value) || 0;
 
             if (!nombre) {
@@ -952,6 +956,7 @@
 
             const datos = {
                 nombre,
+                patente,
                 peso:         get('cam-peso') || 20,
                 alto:         get('cam-alto') || 4.0,
                 largo:        get('cam-largo') || 18,

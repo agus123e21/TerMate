@@ -333,9 +333,15 @@
 
         <form id="form-camion" class="modal-form">
             <input type="hidden" id="cam-id" value="">
-            <div class="field-block">
-                <label class="field-label" for="cam-nombre">Nombre / Alias</label>
-                <input type="text" id="cam-nombre" class="field-input" placeholder="Ej: Volque 01, Acoplado 3Ejes" required autocomplete="off">
+            <div class="fields-row">
+                <div class="field-block">
+                    <label class="field-label" for="cam-nombre">Nombre / Alias</label>
+                    <input type="text" id="cam-nombre" class="field-input" placeholder="Ej: Volque 01" required autocomplete="off">
+                </div>
+                <div class="field-block">
+                    <label class="field-label" for="cam-patente">Patente</label>
+                    <input type="text" id="cam-patente" class="field-input" placeholder="Ej: ABC 123" required autocomplete="off" style="text-transform:uppercase">
+                </div>
             </div>
 
             <div class="form-section-label">Dimensiones y peso</div>

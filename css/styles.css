@@ -1154,3 +1154,461 @@ select.field-input {
     border-radius: 20px !important;
     padding: 4px 12px !important;
 }
+
+/* ─── SUB-TABS (dentro de Mis Camiones) ──────────────────────── */
+.subtabs-bar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.35rem;
+    background-color: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    margin-bottom: 1.5rem;
+    width: fit-content;
+}
+
+.subtab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--c-text-muted);
+    padding: 0.55rem 1.1rem;
+    border-radius: var(--r-sm);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--t-fast);
+}
+.subtab-btn:hover {
+    color: var(--c-text-body);
+    background-color: rgba(255,255,255,0.03);
+}
+.subtab-btn.active {
+    background-color: var(--c-primary-bg);
+    color: var(--c-primary-light);
+    border: 1px solid rgba(37, 99, 235, 0.3);
+}
+.subtab-btn svg {
+    flex-shrink: 0;
+}
+
+.subtab-pane {
+    display: none;
+    animation: paneFade 0.2s ease-out;
+}
+.subtab-pane.active {
+    display: block;
+}
+
+/* ─── CAMIONEROS GRID ─────────────────────────────────────────── */
+.camioneros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+    width: 100%;
+}
+
+/* ─── CAMIONERO CARD ──────────────────────────────────────────── */
+.camionero-card {
+    background-color: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 1.25rem 1.25rem 1rem;
+    cursor: pointer;
+    transition: all var(--t-fast);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.camionero-card:hover {
+    border-color: var(--c-border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.camionero-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+/* Avatar circle con iniciales */
+.camionero-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-info) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    letter-spacing: -0.02em;
+}
+
+.camionero-info {
+    flex: 1;
+    min-width: 0;
+}
+.camionero-nombre {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--c-text-title);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.camionero-dni {
+    font-size: 0.75rem;
+    color: var(--c-text-muted);
+    margin-top: 0.15rem;
+}
+
+/* Score badge circular */
+.score-ring {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+.score-ring svg {
+    transform: rotate(-90deg);
+}
+.score-ring-bg {
+    fill: none;
+    stroke: var(--c-border);
+    stroke-width: 3.5;
+}
+.score-ring-fill {
+    fill: none;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.score-ring-fill.verde  { stroke: var(--c-success); }
+.score-ring-fill.amarillo { stroke: var(--c-warning); }
+.score-ring-fill.rojo   { stroke: var(--c-danger); }
+.score-ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--c-text-title);
+    line-height: 1;
+}
+
+/* Metadata row */
+.camionero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.cnr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.cnr-badge--carnet {
+    background-color: var(--c-primary-bg);
+    color: var(--c-primary-light);
+    border-color: rgba(37,99,235,0.2);
+}
+.cnr-badge--carnet.vto-ok { 
+    background-color: var(--c-success-bg); 
+    color: var(--c-success); 
+    border-color: rgba(16,185,129,0.2); 
+}
+.cnr-badge--carnet.vto-prox { 
+    background-color: var(--c-warning-bg); 
+    color: var(--c-warning); 
+    border-color: rgba(245,158,11,0.2); 
+}
+.cnr-badge--carnet.vto-exp { 
+    background-color: var(--c-danger-bg); 
+    color: var(--c-danger); 
+    border-color: rgba(239,68,68,0.2); 
+}
+.cnr-badge--bono {
+    background-color: rgba(139,92,246,0.1);
+    color: var(--c-info);
+    border-color: rgba(139,92,246,0.2);
+}
+.cnr-badge--caps {
+    background-color: var(--c-surface);
+    color: var(--c-text-muted);
+    border-color: var(--c-border);
+}
+
+/* Footer de la card */
+.camionero-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--c-border);
+    padding-top: 0.75rem;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    color: var(--c-text-muted);
+}
+.camionero-card-footer .viajes-count {
+    font-weight: 700;
+    color: var(--c-text-body);
+}
+
+/* Delete button on camionero card */
+.camionero-card-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color var(--t-fast), background var(--t-fast);
+    z-index: 2;
+}
+.camionero-card-delete:hover {
+    color: var(--c-danger);
+    background-color: var(--c-danger-bg);
+}
+
+/* ─── CAPACITACIONES en modal ─────────────────────────────────── */
+.caps-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.cap-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-xs);
+    padding: 0.45rem 0.75rem;
+    font-size: 0.82rem;
+}
+.cap-item-nombre {
+    font-weight: 600;
+    color: var(--c-text-body);
+}
+.cap-item-fecha {
+    color: var(--c-text-muted);
+    font-size: 0.75rem;
+}
+.cap-item-del {
+    background: none;
+    border: none;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 2px;
+    line-height: 1;
+}
+.cap-item-del:hover { color: var(--c-danger); }
+
+/* ─── HISTORIAL DE COMPORTAMIENTO (perfil) ────────────────────── */
+.historial-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 1.25rem;
+}
+.historial-timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: var(--c-border);
+}
+.historial-entry {
+    position: relative;
+    background-color: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.82rem;
+    transition: border-color var(--t-fast);
+}
+.historial-entry:hover { border-color: var(--c-border-hover); }
+.historial-entry::before {
+    content: '';
+    position: absolute;
+    left: -1.48rem;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--c-border);
+    border: 2px solid var(--c-surface);
+}
+.historial-entry.ok::before    { background: var(--c-success); }
+.historial-entry.warn::before  { background: var(--c-warning); }
+.historial-entry.bad::before   { background: var(--c-danger); }
+
+.historial-entry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+}
+.historial-fecha {
+    font-size: 0.72rem;
+    color: var(--c-text-muted);
+    font-weight: 600;
+}
+.historial-badges {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+.hist-badge {
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.hist-badge.ruta-si    { background: var(--c-success-bg); color: var(--c-success); }
+.hist-badge.ruta-no    { background: var(--c-danger-bg);  color: var(--c-danger); }
+.hist-badge.ruta-parc  { background: var(--c-warning-bg); color: var(--c-warning); }
+.hist-badge.punt-ok    { background: var(--c-success-bg); color: var(--c-success); }
+.hist-badge.punt-leve  { background: var(--c-warning-bg); color: var(--c-warning); }
+.hist-badge.punt-grave { background: var(--c-danger-bg);  color: var(--c-danger); }
+.hist-badge.bono-si    { background: rgba(139,92,246,0.12); color: var(--c-info); }
+.hist-badge.bono-no    { background: var(--c-surface); color: var(--c-text-muted); border: 1px solid var(--c-border); }
+
+.historial-incidencia {
+    color: var(--c-text-muted);
+    font-style: italic;
+    margin-top: 0.25rem;
+    font-size: 0.78rem;
+}
+.historial-del {
+    background: none;
+    border: none;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0;
+    margin-left: auto;
+}
+.historial-del:hover { color: var(--c-danger); }
+
+/* ─── PERFIL: sección de datos en modal ───────────────────────── */
+.perfil-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 1.5rem;
+    background-color: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+.perfil-row { display: contents; }
+.perfil-key { color: var(--c-text-muted); padding: 0.3rem 0; }
+.perfil-val { font-weight: 600; color: var(--c-text-title); padding: 0.3rem 0; }
+
+.perfil-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--c-primary-light);
+    margin: 1rem 0 0.5rem;
+}
+.perfil-score-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1rem;
+}
+.perfil-score-num {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+.perfil-score-num.verde    { color: var(--c-success); }
+.perfil-score-num.amarillo { color: var(--c-warning); }
+.perfil-score-num.rojo     { color: var(--c-danger); }
+.perfil-score-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.perfil-score-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.perfil-score-desc {
+    font-size: 0.82rem;
+    color: var(--c-text-body);
+}
+
+/* ─── MODAL WIDE (camionero profile) ─────────────────────────── */
+.modal-panel--wide {
+    max-width: 620px;
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+/* Scrollbar dentro del modal wide */
+.modal-panel--wide::-webkit-scrollbar { width: 5px; }
+.modal-panel--wide::-webkit-scrollbar-track { background: transparent; }
+.modal-panel--wide::-webkit-scrollbar-thumb { background: var(--c-border-hover); border-radius: 99px; }
+
+@media (max-width: 960px) {
+    .camioneros-grid {
+        grid-template-columns: 1fr;
+    }
+    .subtabs-bar {
+        width: 100%;
+    }
+    .subtab-btn {
+        flex: 1;
+        justify-content: center;
+    }
+    .modal-panel--wide {
+        max-width: 94vw;
+        max-height: 90vh;
+    }
+    .perfil-grid {
+        grid-template-columns: 1fr;
+    }
+}

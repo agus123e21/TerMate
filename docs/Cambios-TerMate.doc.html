@@ -1,0 +1,214 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<title>Informe de Cambios — TerMate</title>
+<style>
+  body { font-family: 'Calibri', sans-serif; font-size: 11pt; color: #1e293b; line-height: 1.6; margin: 2.5cm; }
+  h1 { font-size: 22pt; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 8px; margin-top: 0; }
+  h2 { font-size: 16pt; color: #1e40af; margin-top: 28px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+  h3 { font-size: 13pt; color: #334155; margin-top: 18px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 10.5pt; }
+  th { background: #e2e8f0; font-weight: 600; }
+  ul { margin: 4px 0 4px 20px; }
+  li { margin-bottom: 3px; }
+  .header-meta { font-size: 10pt; color: #64748b; margin-bottom: 20px; }
+  .version { font-size: 12pt; color: #3b82f6; font-weight: 600; }
+</style>
+<!--[if gte mso 9]>
+<xml>
+  <w:WordDocument>
+    <w:View>Print</w:View>
+    <w:Zoom>100</w:Zoom>
+  </w:WordDocument>
+</xml>
+<![endif]-->
+</head>
+<body>
+
+<h1>Informe de Cambios — TerMate</h1>
+<p class="header-meta">
+  <strong>Proyecto:</strong> TerMate (gestion.0.0.2)<br>
+  <strong>Fecha:</strong> 22 de julio de 2026<br>
+  <strong>Version actual:</strong> <span class="version">commit c4710a1</span><br>
+  <strong>Repositorio:</strong> github.com/agus123e21/TerMate.git (branch: main)
+</p>
+
+<h2>1. Origen del proyecto</h2>
+<p>El proyecto comenzó como <strong>"Gestion 0.0.2"</strong>, una aplicacion web para gestion y logistica de camiones y rutas. El usuario (agus123e21) contaba con un repo anterior llamado <strong>BetaLogistica.0.0.1</strong> (branch master). La idea principal era contar con una herramienta propia para administrar viajes de fletes: calcular rutas, asignar camiones, y llevar registro de cada envio.</p>
+
+<h2>2. Rewrite completo de la aplicacion</h2>
+<p>Se realizo un rewrite de cero de la app original, pasando de un solo archivo HTML a una estructura modular separada:</p>
+<table>
+  <tr><th>Archivo</th><th>Descripcion</th></tr>
+  <tr><td>index.html</td><td>HTML principal — sidebar, tabs, formularios, modales, KPIs, bottom nav</td></tr>
+  <tr><td>css/styles.css</td><td>Diseno completo — variables CSS, sidebar, tabs, mapa, modales, responsive</td></tr>
+  <tr><td>js/app.js</td><td>Logica core — IIFE, geocoding, routing, dual maps, CRUD, filtros, modales</td></tr>
+  <tr><td>sw.js</td><td>Service Worker v2 — cache offline-first de assets incluyendo GeoJSON</td></tr>
+  <tr><td>manifest.json</td><td>PWA manifest — nombre "TerMate — Gestion de Camiones"</td></tr>
+  <tr><td>data/argentina-provinces.geojson</td><td>GeoJSON simplificado de 24 provincias argentinas (70KB)</td></tr>
+  <tr><td>api.md</td><td>Documentacion de API</td></tr>
+  <tr><td>README.md</td><td>Descripcion del proyecto</td></tr>
+</table>
+
+<h2>3. Funcionalidades implementadas</h2>
+
+<h3>3.1 Patron IIFE y encapsulamiento</h3>
+<p>Toda la logica de JavaScript se encuentra dentro de un IIFE (Immediately Invoked Function Expression) para evitar contaminacion del scope global.</p>
+
+<h3>3.2 Navegacion</h3>
+<ul>
+  <li><strong>Sidebar</strong> con botones para cada tab</li>
+  <li><strong>Bottom nav</strong> optimizada para mobile</li>
+  <li>Tabs: Nueva Ruta, Mis Viajes, Mapa, Mis Camiones</li>
+</ul>
+
+<h3>3.3 PWA (Progressive Web App)</h3>
+<ul>
+  <li>Service Worker v2 con cache offline-first</li>
+  <li>Manifest.json para instalacion como app</li>
+  <li>Cachea assets criticos incluyendo el GeoJSON de provincias</li>
+</ul>
+
+<h3>3.4 Geocodificacion</h3>
+<ul>
+  <li>Api de <strong>Nominatim</strong> (OpenStreetMap) para resolver direcciones a coordenadas</li>
+  <li>Autocompletado de sugerencias mientras se escribe</li>
+</ul>
+
+<h3>3.5 Routing real</h3>
+<ul>
+  <li><strong>OSRM</strong> (gratuito) como servicio principal con <code>steps=true</code> para obtener nombres de calles</li>
+  <li><strong>ORS</strong> como fallback (API key vacia, siempre cae a OSRM)</li>
+  <li><strong>Haversine</strong> como ultimo recurso si no hay conexion</li>
+  <li>Parametros HGV para camiones (altura, ancho, largo, peso, carga por eje)</li>
+</ul>
+
+<h3>3.6 Mapas duales con Leaflet</h3>
+<ul>
+  <li><strong>Mapa inline</strong> en el formulario Nueva Ruta</li>
+  <li><strong>Mapa full-screen</strong> en el tab Mapa</li>
+  <li>Tiles de CARTO dark_all (tema oscuro)</li>
+  <li>Restriccion geografica a Argentina con <code>maxBounds</code></li>
+  <li>Overlay de 24 provincias argentinas con labels</li>
+</ul>
+
+<h3>3.7 CRUD completo de envios</h3>
+<ul>
+  <li>Crear, editar, eliminar viajes</li>
+  <li>Estados: Pendiente, En Transito, Entregado</li>
+  <li>Almacenamiento en localStorage</li>
+  <li>Persistencia de datos entre sesiones</li>
+</ul>
+
+<h3>3.8 Sistema multi-camion</h3>
+<ul>
+  <li>Array <code>camiones[]</code> con: nombre, patente, camionero, dimensiones, peso, consumo</li>
+  <li>Tab "Mis Camiones" con CRUD completo</li>
+  <li>Selector obligatorio de camion en "Nueva Ruta"</li>
+  <li>Cada envio almacena <code>camionId</code></li>
+  <li>Consumo calculado segun el camion asignado</li>
+</ul>
+
+<h3>3.9 Filtros y busqueda</h3>
+<ul>
+  <li>Filtrar por estado (Todos, Pendiente, En Ruta, Entregado)</li>
+  <li>Buscar por destino, carga, cliente, remito</li>
+  <li>Paginacion con lazy loading</li>
+</ul>
+
+<h3>3.10 Modal de datos del viaje</h3>
+<ul>
+  <li>Selector de camion</li>
+  <li>Campos: cliente, N de remito</li>
+  <li>Aparece despues de calcular la ruta</li>
+  <li>Editable desde el detalle del viaje</li>
+</ul>
+
+<h2>4. Evolucion del mapa y rutas</h2>
+<p>Este fue el tema con mas iteraciones. A continuacion se documenta cada cambio:</p>
+
+<table>
+  <tr><th>Version</th><th>Cambio</th><th>Detalle</th></tr>
+  <tr><td>v1</td><td>Linea coloreada por estado</td><td>Verde (pendiente), azul (transito), gris (entregado). Dashed para pendientes.</td></tr>
+  <tr><td>v2</td><td>Doble trazado estilo autopista</td><td>Borde blanco grueso detras + linea de color encima. Weight 5-7px.</td></tr>
+  <tr><td>v3</td><td>Solo labels permanentes</td><td>Origen verde grande, destino rojo grande, punto medio azul con carga y distancia.</td></tr>
+  <tr><td>v4</td><td>Labels + linea juntos</td><td>Los dos anteriores combinados.</td></tr>
+  <tr><td>v5</td><td>Sin borde blanco, celeste transparente</td><td>Linea celeste (#38bdf8) opacidad 45%, weight 5. Limpia y moderna.</td></tr>
+  <tr><td>v6 (actual)</td><td>Celeste transparente + popup con calles</td><td>Linea como guia visual. Al clickear aparece popup con: Ruta #0001, origen, destino, carga, distancia, y lista de calles por donde pasa (de OSRM steps).</td></tr>
+</table>
+
+<h2>5. Comprobante de viaje</h2>
+<ul>
+  <li>Boton de descarga en cada tarjeta de "Mis Viajes"</li>
+  <li>Genera un HTML completo con datos del viaje, camion, cliente, remito y ruta por calles</li>
+  <li>Se abre en nueva pestana con <code>window.open('', '_blank')</code> + <code>document.write()</code></li>
+  <li>Formato profesional optimizado para impresion (Ctrl+P para guardar como PDF)</li>
+  <li>Estilo: header oscuro, secciones separadas, labels grises, bordes sutiles</li>
+</ul>
+
+<h2>6. Arreglo del layout de busqueda</h2>
+<ul>
+  <li>Header reestructurado: titulo a la izquierda, busqueda a la derecha en misma fila</li>
+  <li>Barra de busqueda redondeada (pill) con placeholder actualizado</li>
+  <li>Filtros debajo con spacing uniforme</li>
+  <li>Responsive y adaptable al contenido</li>
+</ul>
+
+<h2>7. Tecnologias utilizadas</h2>
+<table>
+  <tr><th>Capa</th><th>Tecnologia</th></tr>
+  <tr><td>UI</td><td>HTML / CSS / JavaScript vanilla, CSS variables, responsive</td></tr>
+  <tr><td>Mapas</td><td>Leaflet 1.9.4</td></tr>
+  <tr><td>Tiles</td><td>CARTO dark_all</td></tr>
+  <tr><td>Geocoding</td><td>Nominatim (OpenStreetMap)</td></tr>
+  <tr><td>Routing</td><td>OSRM (gratuito) + ORS (key vacia) + Haversine fallback</td></tr>
+  <tr><td>PWA</td><td>Service Worker v2 + manifest.json</td></tr>
+  <tr><td>Storage</td><td>localStorage</td></tr>
+  <tr><td>Datos geograficos</td><td>GeoJSON simplificado (24 provincias, 70KB)</td></tr>
+</table>
+
+<h2>8. Commits realizados</h2>
+<table>
+  <tr><th>Hash</th><th>Mensaje</th></tr>
+  <tr><td>ee05cc3</td><td>feat: campo patente en camiones</td></tr>
+  <tr><td>01edf93</td><td>refactor: selector de camion en modal-viaje, editable desde detalle, arranca en tab camiones si no hay ninguno</td></tr>
+  <tr><td>834e091</td><td>feat: campo camionero en camiones, visible en tarjetas y detalle de viaje</td></tr>
+  <tr><td>e0c19f4</td><td>feat: labels permanentes en mapa mostrando origen y destino de cada ruta</td></tr>
+  <tr><td>9804091</td><td>style: rutas mas resaltadas con doble trazado (borde oscuro + linea color)</td></tr>
+  <tr><td>feddc64</td><td>style: ruta tipo autopista con borde blanco y linea de color</td></tr>
+  <tr><td>7c9e529</td><td>feat: sin lineas en mapa, labels grandes de origen/destino/carga como guia visual</td></tr>
+  <tr><td>215cfc8</td><td>feat: linea de ruta con labels grandes de origen/destino/carga</td></tr>
+  <tr><td>a973326</td><td>feat: linea como guia, clic muestra popup con nombre/calles de ruta</td></tr>
+  <tr><td>94cbe8d</td><td>style: ruta celeste transparente sin borde</td></tr>
+  <tr><td>0531d75</td><td>fix: eliminar linea duplicada, solo queda celeste transparente</td></tr>
+  <tr><td>a9cd0aa</td><td>fix: arreglar layout de busqueda y filtros en mis viajes</td></tr>
+  <tr><td>bef5f4c</td><td>feat: popup de linea muestra calles/ruta por donde pasar</td></tr>
+  <tr><td>d8f3d74</td><td>feat: boton de descarga en viajes genera comprobante PDF imprimible</td></tr>
+  <tr><td>2e0ab3c</td><td>fix: descarga directa del comprobante en vez de popup bloqueado</td></tr>
+  <tr><td>c4710a1</td><td>fix: comprobante abre en nueva pestana con document.write en vez de blob</td></tr>
+</table>
+
+<h2>9. Estado actual</h2>
+<p>La aplicacion se encuentra en un estado funcional como <strong>PWA offline-first</strong> con las siguientes capacidades:</p>
+<ul>
+  <li>Geocodificacion + routing real con nombres de calles reales</li>
+  <li>Sistema multi-camion con patente y camionero asignado</li>
+  <li>Ruta guiada celeste transparente + popup interactivo con calles</li>
+  <li>Comprobantes de viaje descargables/imprimibles</li>
+  <li>Layout de busqueda limpio y parejo</li>
+  <li>Overlay de provincias argentinas</li>
+  <li>Restriccion geografica a Argentina</li>
+  <li>CRUD completo de envios y camiones</li>
+  <li>Filtros y busqueda avanzada</li>
+  <li>Soporte offline con Service Worker</li>
+</ul>
+
+<p style="margin-top:40px; font-size:9pt; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:12px;">
+  Generado por TerMate — Informe de Cambios — 22 de julio de 2026
+</p>
+
+</body>
+</html>

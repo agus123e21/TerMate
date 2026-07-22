@@ -30,11 +30,21 @@
     let contadorCamiones = 1;
     let camionEditandoId = null;
 
-    const KEY_GEO_CACHE = 'termate_geo_cache';
-    const KEY_ENVIOS     = 'termate_envios';
-    const KEY_CONTADOR   = 'termate_contador';
-    const KEY_CAMIONES   = 'termate_camiones';
-    const KEY_CONT_CAM   = 'termate_cont_camiones';
+    // Camioneros registrados
+    let camioneros = [];
+    let contadorCamioneros = 1;
+    let camioneroEditandoId = null;
+    let camioneroPerfilId = null;
+    // Capacitaciones temporales mientras se edita
+    let capsTemp = [];
+
+    const KEY_GEO_CACHE    = 'termate_geo_cache';
+    const KEY_ENVIOS       = 'termate_envios';
+    const KEY_CONTADOR     = 'termate_contador';
+    const KEY_CAMIONES     = 'termate_camiones';
+    const KEY_CONT_CAM     = 'termate_cont_camiones';
+    const KEY_CAMIONEROS   = 'termate_camioneros';
+    const KEY_CONT_CNR     = 'termate_cont_camioneros';
     const cacheGeo = JSON.parse(localStorage.getItem(KEY_GEO_CACHE) || '{}');
 
     const ORS_BASE = 'https://api.openrouteservice.org/v2';
@@ -80,10 +90,12 @@
     // ═══════════════════════════════════════════════════════════
     function guardar() {
         try {
-            localStorage.setItem(KEY_ENVIOS, JSON.stringify(envios));
-            localStorage.setItem(KEY_CONTADOR, String(contadorId));
-            localStorage.setItem(KEY_CAMIONES, JSON.stringify(camiones));
-            localStorage.setItem(KEY_CONT_CAM, String(contadorCamiones));
+            localStorage.setItem(KEY_ENVIOS,     JSON.stringify(envios));
+            localStorage.setItem(KEY_CONTADOR,    String(contadorId));
+            localStorage.setItem(KEY_CAMIONES,    JSON.stringify(camiones));
+            localStorage.setItem(KEY_CONT_CAM,    String(contadorCamiones));
+            localStorage.setItem(KEY_CAMIONEROS,  JSON.stringify(camioneros));
+            localStorage.setItem(KEY_CONT_CNR,    String(contadorCamioneros));
         } catch {
             showToast('Almacenamiento lleno. Elimina rutas viejas.', 'error');
         }
@@ -105,6 +117,10 @@
             if (ca) camiones = JSON.parse(ca);
             const cc = localStorage.getItem(KEY_CONT_CAM);
             if (cc) contadorCamiones = parseInt(cc, 10);
+            const cnr = localStorage.getItem(KEY_CAMIONEROS);
+            if (cnr) camioneros = JSON.parse(cnr);
+            const ccnr = localStorage.getItem(KEY_CONT_CNR);
+            if (ccnr) contadorCamioneros = parseInt(ccnr, 10);
         } catch (err) {
             console.error(err);
         }
@@ -567,19 +583,91 @@
 
         c.innerHTML = lista.map(e => {
             const clase = e.estado === 'Pendiente' ? 'pendiente' : e.estado === 'En Transito' ? 'transito' : 'entregado';
+            const estadoLabel = e.estado === 'Pendiente' ? 'Pendiente' : e.estado === 'En Transito' ? 'En Ruta' : 'Entregado';
             const camion = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
-            return `<div class="viaje-card ${clase}" data-id="${e.id}" role="button" tabindex="0">
-                <div class="viaje-ruta">
-                    <span>${e.origen.split(',')[0]}</span>
-                    <span class="viaje-ruta-arrow">→</span>
-                    <span>${e.destino.split(',')[0]}</span>
+            const dist   = formatoDistancia(e.distancia);
+            const tiempo = formatoTiempo(e.tiempo);
+            const fuel   = e.distancia ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
+            const camionLabel = camion ? `${camion.nombre}${camion.patente ? ' · ' + camion.patente : ''}` : null;
+
+            return `<div class="viaje-card-v2 ${clase}" data-id="${e.id}" role="button" tabindex="0">
+
+                <!-- Franja de estado -->
+                <div class="vc2-estado-bar">
+                    <span class="vc2-estado-badge ${clase}">${estadoLabel}</span>
+                    <span class="vc2-id">#${String(e.id).padStart(4,'0')}</span>
                 </div>
-                <div class="viaje-meta">
-                    <span class="viaje-carga">${e.producto}</span>
-                    <span class="viaje-distancia">${formatoDistancia(e.distancia)}</span>
+
+                <!-- Ruta principal -->
+                <div class="vc2-ruta">
+                    <div class="vc2-punto">
+                        <span class="vc2-dot vc2-dot--ori"></span>
+                        <span class="vc2-ciudad">${e.origen.split(',')[0]}</span>
+                        <span class="vc2-provincia">${e.origen.split(',').slice(1).join(',').trim()}</span>
+                    </div>
+                    <div class="vc2-linea-ruta"></div>
+                    <div class="vc2-punto">
+                        <span class="vc2-dot vc2-dot--dest"></span>
+                        <span class="vc2-ciudad">${e.destino.split(',')[0]}</span>
+                        <span class="vc2-provincia">${e.destino.split(',').slice(1).join(',').trim()}</span>
+                    </div>
                 </div>
+
+                <!-- Métricas clave -->
+                <div class="vc2-metricas">
+                    <div class="vc2-metrica">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span class="vc2-metrica-val">${tiempo}</span>
+                        <span class="vc2-metrica-lbl">Tiempo</span>
+                    </div>
+                    <div class="vc2-sep"></div>
+                    <div class="vc2-metrica">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        <span class="vc2-metrica-val">${dist}</span>
+                        <span class="vc2-metrica-lbl">Distancia</span>
+                    </div>
+                    <div class="vc2-sep"></div>
+                    <div class="vc2-metrica">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/></svg>
+                        <span class="vc2-metrica-val">${fuel}</span>
+                        <span class="vc2-metrica-lbl">Combustible</span>
+                    </div>
+                </div>
+
+                <!-- Fila secundaria: camion + carga + remito -->
+                <div class="vc2-tags">
+                    ${camionLabel ? `<span class="vc2-tag vc2-tag--camion">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><rect x="1" y="11" width="15" height="10" rx="1"/><path d="M16 11l4 3v7h-4V11z"/><circle cx="5.5" cy="21" r="1.5"/><circle cx="18.5" cy="21" r="1.5"/></svg>
+                        ${camionLabel}
+                    </span>` : ''}
+                    <span class="vc2-tag vc2-tag--carga">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        ${e.producto}${e.pesoCarga ? ' · ' + e.pesoCarga + ' tn' : ''}
+                    </span>
+                    ${e.remito ? `<span class="vc2-tag vc2-tag--remito">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        ${e.remito}
+                    </span>` : ''}
+                </div>
+
+                <!-- Más info (colapsable) -->
+                <div class="vc2-mas-info-wrap">
+                    <button class="vc2-mas-info-toggle" data-id="${e.id}" onclick="event.stopPropagation()">
+                        <svg class="vc2-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="6 9 12 15 18 9"/></svg>
+                        Más info
+                    </button>
+                    <div class="vc2-mas-info hidden">
+                        ${e.cliente ? `<div class="vc2-info-row"><span>Cliente</span><span>${e.cliente}</span></div>` : ''}
+                        ${camion?.camionero ? `<div class="vc2-info-row"><span>Chofer</span><span>${camion.camionero}</span></div>` : ''}
+                        ${e.pesoCarga ? `<div class="vc2-info-row"><span>Peso carga</span><span>${e.pesoCarga} tn</span></div>` : ''}
+                        ${e.calles?.length ? `<div class="vc2-info-row"><span>Ruta por</span><span style="text-align:right;max-width:180px">${e.calles.slice(0,4).join(' → ')}${e.calles.length > 4 ? '…' : ''}</span></div>` : ''}
+                        <div class="vc2-info-row"><span>Fecha</span><span>${e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR') : '—'}</span></div>
+                    </div>
+                </div>
+
+                <!-- Acciones flotantes -->
                 <button class="btn-download" data-id="${e.id}" title="Descargar comprobante" onclick="event.stopPropagation()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                         <polyline points="7 10 12 15 17 10"/>
                         <line x1="12" y1="15" x2="12" y2="3"/>
@@ -673,6 +761,285 @@
         camionEditandoId = null;
     }
 
+    // ─── SCORING DE CAMIONERO ─────────────────────────────────
+    function calcularScore(camionero) {
+        const h = camionero.historial || [];
+        if (h.length === 0) return null;
+        let puntos = 0;
+        h.forEach(r => {
+            if (r.ruta === 'si')      puntos += 40;
+            else if (r.ruta === 'parcial') puntos += 20;
+            if (r.puntualidad === 'puntual') puntos += 30;
+            else if (r.puntualidad === 'leve') puntos += 15;
+            if (r.bono === 'si')      puntos += 30;
+        });
+        return Math.round(puntos / h.length);
+    }
+
+    function scoreClass(score) {
+        if (score === null) return 'amarillo';
+        if (score >= 70) return 'verde';
+        if (score >= 40) return 'amarillo';
+        return 'rojo';
+    }
+
+    function carnetVtoClass(vto) {
+        if (!vto) return '';
+        const hoy = new Date();
+        const vtoDate = new Date(vto);
+        const diff = (vtoDate - hoy) / (1000*60*60*24);
+        if (diff < 0)  return 'vto-exp';
+        if (diff < 60) return 'vto-prox';
+        return 'vto-ok';
+    }
+
+    function scoreRingHTML(score) {
+        const pct = score !== null ? score : 0;
+        const r = 20;
+        const circ = 2 * Math.PI * r;
+        const offset = circ - (pct / 100) * circ;
+        const cls = scoreClass(score);
+        return `<div class="score-ring">
+            <svg width="48" height="48" viewBox="0 0 48 48">
+                <circle class="score-ring-bg" cx="24" cy="24" r="${r}"/>
+                <circle class="score-ring-fill ${cls}" cx="24" cy="24" r="${r}"
+                    stroke-dasharray="${circ.toFixed(2)}"
+                    stroke-dashoffset="${offset.toFixed(2)}"/>
+            </svg>
+            <div class="score-ring-label">${score !== null ? score + '%' : '—'}</div>
+        </div>`;
+    }
+
+    // ─── RENDER LISTA CAMIONEROS ──────────────────────────────
+    function renderListaCamioneros() {
+        const c = document.getElementById('lista-camioneros');
+        if (!c) return;
+
+        if (camioneros.length === 0) {
+            c.innerHTML = `<div class="empty-state"><p>No hay camioneros registrados. Agrega uno para llevar el control de conducta y bonos.</p></div>`;
+            return;
+        }
+
+        c.innerHTML = camioneros.map(cnr => {
+            const score = calcularScore(cnr);
+            const cls = scoreClass(score);
+            const vtoClass = carnetVtoClass(cnr.carnetVto);
+            const vtoLabel = cnr.carnetVto
+                ? (vtoClass === 'vto-exp' ? 'Carnet VENCIDO' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${cnr.carnetCat || '?'} ✓`)
+                : (cnr.carnetCat ? `Cat. ${cnr.carnetCat}` : 'Sin carnet');
+            const totalRegistros = (cnr.historial || []).length;
+            const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
+            const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
+            const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+            return `<div class="camionero-card" data-id="${cnr.id}" role="button" tabindex="0">
+                <button class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar">&times;</button>
+                <div class="camionero-card-header">
+                    <div class="camionero-avatar">${initials}</div>
+                    <div class="camionero-info">
+                        <div class="camionero-nombre">${cnr.nombre}</div>
+                        <div class="camionero-dni">${cnr.dni ? 'DNI ' + cnr.dni : (cnr.tel || 'Sin datos')}</div>
+                    </div>
+                    ${scoreRingHTML(score)}
+                </div>
+                <div class="camionero-meta">
+                    ${cnr.carnetNum || cnr.carnetCat ? `<span class="cnr-badge cnr-badge--carnet ${vtoClass}">${vtoLabel}</span>` : ''}
+                    ${(cnr.capacitaciones || []).length > 0 ? `<span class="cnr-badge cnr-badge--caps">${cnr.capacitaciones.length} capacitaciones</span>` : ''}
+                    ${bonos > 0 ? `<span class="cnr-badge cnr-badge--bono">${bonos} bono${bonos > 1 ? 's' : ''}</span>` : ''}
+                </div>
+                <div class="camionero-card-footer">
+                    <span>${camionAsig ? camionAsig.nombre + ' ' + (camionAsig.patente || '') : 'Sin camion asignado'}</span>
+                    <span><span class="viajes-count">${totalRegistros}</span> registros</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // ─── MODAL CAMIONERO: abrir/cerrar ────────────────────────
+    function abrirModalCamionero(cnr) {
+        capsTemp = cnr ? [...(cnr.capacitaciones || [])] : [];
+        camioneroEditandoId = cnr ? cnr.id : null;
+
+        const titulo = document.getElementById('modal-camionero-titulo');
+        if (titulo) titulo.textContent = cnr ? 'Editar Camionero' : 'Nuevo Camionero';
+
+        document.getElementById('cnr-id').value = cnr ? cnr.id : '';
+        document.getElementById('cnr-nombre').value = cnr?.nombre || '';
+        document.getElementById('cnr-dni').value = cnr?.dni || '';
+        document.getElementById('cnr-tel').value = cnr?.tel || '';
+        document.getElementById('cnr-ingreso').value = cnr?.ingreso || '';
+        document.getElementById('cnr-carnet-num').value = cnr?.carnetNum || '';
+        document.getElementById('cnr-carnet-cat').value = cnr?.carnetCat || '';
+        document.getElementById('cnr-carnet-vto').value = cnr?.carnetVto || '';
+
+        // Poblar select de camiones
+        const selCam = document.getElementById('cnr-camion-asignado');
+        if (selCam) {
+            selCam.innerHTML = '<option value="">-- Sin asignar --</option>' +
+                camiones.map(c => `<option value="${c.id}" ${c.id === cnr?.camionAsignadoId ? 'selected' : ''}>${c.nombre} ${c.patente ? '(' + c.patente + ')' : ''}</option>`).join('');
+        }
+
+        renderCapsTemp();
+        document.getElementById('modal-camionero')?.classList.remove('hidden');
+    }
+
+    function cerrarModalCamionero() {
+        document.getElementById('modal-camionero')?.classList.add('hidden');
+        camioneroEditandoId = null;
+        capsTemp = [];
+    }
+
+    function renderCapsTemp() {
+        const lista = document.getElementById('cnr-caps-lista');
+        if (!lista) return;
+        if (capsTemp.length === 0) {
+            lista.innerHTML = '<div style="font-size:0.78rem;color:var(--c-text-muted);padding:0.3rem 0">Sin capacitaciones agregadas aun.</div>';
+            return;
+        }
+        lista.innerHTML = capsTemp.map((cap, i) => `
+            <div class="cap-item">
+                <span class="cap-item-nombre">${cap.nombre}</span>
+                <span class="cap-item-fecha">${cap.fecha || ''}</span>
+                <button type="button" class="cap-item-del" data-cap-idx="${i}">&times;</button>
+            </div>
+        `).join('');
+    }
+
+    // ─── MODAL COMPORTAMIENTO ─────────────────────────────────
+    function abrirModalComportamiento(camioneroId) {
+        document.getElementById('comp-camionero-id').value = camioneroId;
+        document.getElementById('form-comportamiento')?.reset();
+        document.getElementById('comp-camionero-id').value = camioneroId;
+        // Fecha default = hoy
+        document.getElementById('comp-fecha').value = new Date().toISOString().split('T')[0];
+        document.getElementById('modal-comportamiento')?.classList.remove('hidden');
+    }
+
+    function cerrarModalComportamiento() {
+        document.getElementById('modal-comportamiento')?.classList.add('hidden');
+    }
+
+    // ─── MODAL PERFIL CAMIONERO ───────────────────────────────
+    function abrirPerfilCamionero(id) {
+        const cnr = camioneros.find(c => c.id === id);
+        if (!cnr) return;
+        camioneroPerfilId = id;
+
+        const score = calcularScore(cnr);
+        const cls = scoreClass(score);
+        const historial = [...(cnr.historial || [])].reverse();
+        const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
+        const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
+        const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+        const cont = document.getElementById('perfil-contenido');
+        if (!cont) return;
+
+        cont.innerHTML = `
+            <!-- Score y Avatar -->
+            <div class="perfil-score-bar">
+                ${scoreRingHTML(score)}
+                <div class="perfil-score-meta">
+                    <span class="perfil-score-label">Score de cumplimiento</span>
+                    <span class="perfil-score-desc">
+                        ${score === null ? 'Sin registros aun' : score >= 70 ? 'Rendimiento excelente — candidato a bono' : score >= 40 ? 'Rendimiento regular — revisar' : 'Rendimiento bajo — requiere atencion'}
+                    </span>
+                </div>
+                <span class="perfil-score-num ${cls}" style="margin-left:auto">${score !== null ? score + '%' : '—'}</span>
+            </div>
+
+            <!-- Datos Personales -->
+            <div class="perfil-section-title">Datos Personales</div>
+            <div class="perfil-grid">
+                <span class="perfil-key">Nombre</span><span class="perfil-val">${cnr.nombre}</span>
+                ${cnr.dni ? `<span class="perfil-key">DNI</span><span class="perfil-val">${cnr.dni}</span>` : ''}
+                ${cnr.tel ? `<span class="perfil-key">Telefono</span><span class="perfil-val">${cnr.tel}</span>` : ''}
+                ${cnr.ingreso ? `<span class="perfil-key">Ingreso</span><span class="perfil-val">${new Date(cnr.ingreso).toLocaleDateString('es-AR')}</span>` : ''}
+                ${camionAsig ? `<span class="perfil-key">Camion</span><span class="perfil-val">${camionAsig.nombre} ${camionAsig.patente ? '(' + camionAsig.patente + ')' : ''}</span>` : ''}
+            </div>
+
+            <!-- Carnet -->
+            ${cnr.carnetNum || cnr.carnetCat ? `
+            <div class="perfil-section-title">Carnet Profesional</div>
+            <div class="perfil-grid">
+                ${cnr.carnetNum ? `<span class="perfil-key">N° Carnet</span><span class="perfil-val">${cnr.carnetNum}</span>` : ''}
+                ${cnr.carnetCat ? `<span class="perfil-key">Categoria</span><span class="perfil-val">${cnr.carnetCat}</span>` : ''}
+                ${cnr.carnetVto ? `<span class="perfil-key">Vencimiento</span><span class="perfil-val">${new Date(cnr.carnetVto).toLocaleDateString('es-AR')}</span>` : ''}
+            </div>` : ''}
+
+            <!-- Capacitaciones -->
+            ${(cnr.capacitaciones || []).length > 0 ? `
+            <div class="perfil-section-title">Capacitaciones</div>
+            <div class="caps-lista" style="margin-bottom:0">
+                ${cnr.capacitaciones.map(cap => `
+                    <div class="cap-item">
+                        <span class="cap-item-nombre">${cap.nombre}</span>
+                        <span class="cap-item-fecha">${cap.fecha ? new Date(cap.fecha).toLocaleDateString('es-AR') : ''}</span>
+                    </div>
+                `).join('')}
+            </div>` : ''}
+
+            <!-- Historial -->
+            <div class="perfil-section-title" style="margin-top:1.25rem">
+                Historial de conduccion
+                <span style="font-weight:400;color:var(--c-text-muted);margin-left:0.5rem">(${historial.length} registros · ${bonos} bono${bonos !== 1 ? 's' : ''})</span>
+            </div>
+            ${historial.length === 0
+                ? '<p style="font-size:0.82rem;color:var(--c-text-muted);padding:0.5rem 0">Sin registros de comportamiento aun.</p>'
+                : `<div class="historial-timeline">
+                    ${historial.map((r, revIdx) => {
+                        const realIdx = historial.length - 1 - revIdx;
+                        const enClass = r.ruta === 'si' && r.puntualidad === 'puntual' ? 'ok' : r.ruta === 'no' || r.puntualidad === 'grave' ? 'bad' : 'warn';
+                        return `<div class="historial-entry ${enClass}" data-idx="${realIdx}">
+                            <div class="historial-entry-header">
+                                <span class="historial-fecha">${r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR') : '—'}</span>
+                                <div class="historial-badges">
+                                    <span class="hist-badge ruta-${r.ruta}">${r.ruta === 'si' ? 'Ruta OK' : r.ruta === 'no' ? 'No cumplió' : 'Parcial'}</span>
+                                    <span class="hist-badge punt-${r.puntualidad === 'puntual' ? 'ok' : r.puntualidad === 'leve' ? 'leve' : 'grave'}">${r.puntualidad === 'puntual' ? 'Puntual' : r.puntualidad === 'leve' ? 'Tardanza leve' : 'Tardanza grave'}</span>
+                                    <span class="hist-badge bono-${r.bono}">${r.bono === 'si' ? 'Bono ✓' : 'Sin bono'}</span>
+                                </div>
+                                <button class="historial-del" data-hist-idx="${realIdx}">Eliminar</button>
+                            </div>
+                            ${r.incidencias ? `<div class="historial-incidencia">${r.incidencias}</div>` : ''}
+                            ${r.obs ? `<div style="font-size:0.78rem;color:var(--c-text-muted);margin-top:0.2rem">${r.obs}</div>` : ''}
+                        </div>`;
+                    }).join('')}
+                </div>`
+            }
+        `;
+
+        // Bind delete en historial
+        cont.querySelectorAll('.historial-del').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.histIdx);
+                const c2 = camioneros.find(x => x.id === camioneroPerfilId);
+                if (c2 && c2.historial) {
+                    c2.historial.splice(idx, 1);
+                    guardar();
+                    renderListaCamioneros();
+                    abrirPerfilCamionero(camioneroPerfilId);
+                }
+            });
+        });
+
+        document.getElementById('modal-perfil-camionero')?.classList.remove('hidden');
+    }
+
+    function cerrarPerfilCamionero() {
+        document.getElementById('modal-perfil-camionero')?.classList.add('hidden');
+        camioneroPerfilId = null;
+    }
+
+    // ─── SUB-TABS ─────────────────────────────────────────────
+    function irASubTab(subtabId) {
+        document.querySelectorAll('.subtab-pane').forEach(p => p.classList.remove('active'));
+        document.getElementById(subtabId)?.classList.add('active');
+        document.querySelectorAll('.subtab-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.subtab === subtabId);
+        });
+    }
+
     function renderListaCamiones() {
         const c = document.getElementById('lista-camiones');
         if (!c) return;
@@ -711,6 +1078,16 @@
         sel.innerHTML = '<option value="">-- Seleccionar camion --</option>' +
             camiones.map(c => `<option value="${c.id}">${c.nombre} ${c.patente ? '(' + c.patente + ')' : ''}</option>`).join('');
         if (prev && camiones.some(c => c.id === parseInt(prev))) sel.value = prev;
+    }
+
+    function renderSelectCamioneros() {
+        // Actualiza el select de camionero dentro del modal de camion
+        const sel = document.getElementById('cam-camionero-select');
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">-- Sin camionero --</option>' +
+            camioneros.map(c => `<option value="${c.id}">${c.nombre}${c.dni ? ' · DNI ' + c.dni : ''}</option>`).join('');
+        if (prev && camioneros.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
     // Modal Datos del Viaje
@@ -892,12 +1269,18 @@
             btn.addEventListener('click', () => irATab(btn.dataset.tab));
         });
 
+        // Sub-tabs Camiones / Camioneros
+        document.querySelectorAll('.subtab-btn').forEach(btn => {
+            btn.addEventListener('click', () => irASubTab(btn.dataset.subtab));
+        });
+
         // Modal Camiones
         document.getElementById('btn-nuevo-camion')?.addEventListener('click', () => {
             camionEditandoId = null;
             document.getElementById('modal-camion-titulo').textContent = 'Nuevo Camion';
             document.getElementById('form-camion')?.reset();
             document.getElementById('cam-id').value = '';
+            renderSelectCamioneros();
             document.getElementById('modal-camion')?.classList.remove('hidden');
         });
         document.getElementById('btn-cerrar-camion')?.addEventListener('click', cerrarModalCamion);
@@ -924,7 +1307,9 @@
             document.getElementById('cam-id').value = id;
             document.getElementById('cam-nombre').value = camion.nombre;
             document.getElementById('cam-patente').value = camion.patente || '';
-            document.getElementById('cam-camionero').value = camion.camionero || '';
+            renderSelectCamioneros();
+            const selCnr = document.getElementById('cam-camionero-select');
+            if (selCnr) selCnr.value = camion.camioneroId || '';
             document.getElementById('cam-peso').value = camion.peso;
             document.getElementById('cam-alto').value = camion.alto;
             document.getElementById('cam-largo').value = camion.largo;
@@ -932,6 +1317,118 @@
             document.getElementById('cam-cons-vacio').value = camion.consumoVacio;
             document.getElementById('cam-cons-cargado').value = camion.consumoLleno;
             document.getElementById('modal-camion')?.classList.remove('hidden');
+        });
+
+        // ─── CAMIONEROS ───────────────────────────────────────
+        document.getElementById('btn-nuevo-camionero')?.addEventListener('click', () => abrirModalCamionero(null));
+        document.getElementById('btn-cerrar-camionero')?.addEventListener('click', cerrarModalCamionero);
+        document.getElementById('btn-cancelar-camionero')?.addEventListener('click', cerrarModalCamionero);
+
+        // Agregar capacitacion temporal
+        document.getElementById('btn-agregar-cap')?.addEventListener('click', () => {
+            const nombre = document.getElementById('cnr-cap-nombre').value.trim();
+            const fecha  = document.getElementById('cnr-cap-fecha').value;
+            if (!nombre) { showToast('Escribe el nombre del curso.', 'error'); return; }
+            capsTemp.push({ nombre, fecha });
+            document.getElementById('cnr-cap-nombre').value = '';
+            document.getElementById('cnr-cap-fecha').value = '';
+            renderCapsTemp();
+        });
+
+        // Eliminar cap temporal
+        document.getElementById('cnr-caps-lista')?.addEventListener('click', e => {
+            const btn = e.target.closest('.cap-item-del');
+            if (!btn) return;
+            capsTemp.splice(parseInt(btn.dataset.capIdx), 1);
+            renderCapsTemp();
+        });
+
+        // Guardar camionero
+        document.getElementById('form-camionero')?.addEventListener('submit', e => {
+            e.preventDefault();
+            const nombre = document.getElementById('cnr-nombre').value.trim();
+            if (!nombre) { showToast('El nombre es obligatorio.', 'error'); return; }
+
+            const datos = {
+                nombre,
+                dni:            document.getElementById('cnr-dni').value.trim(),
+                tel:            document.getElementById('cnr-tel').value.trim(),
+                ingreso:        document.getElementById('cnr-ingreso').value,
+                carnetNum:      document.getElementById('cnr-carnet-num').value.trim(),
+                carnetCat:      document.getElementById('cnr-carnet-cat').value,
+                carnetVto:      document.getElementById('cnr-carnet-vto').value,
+                camionAsignadoId: parseInt(document.getElementById('cnr-camion-asignado').value) || null,
+                capacitaciones: [...capsTemp]
+            };
+
+            const idStr = document.getElementById('cnr-id').value;
+            if (idStr) {
+                const idx = camioneros.findIndex(c => c.id === parseInt(idStr));
+                if (idx !== -1) camioneros[idx] = { ...camioneros[idx], ...datos };
+                showToast('Camionero actualizado.', 'success');
+            } else {
+                camioneros.push({ id: contadorCamioneros++, historial: [], ...datos });
+                showToast('Camionero registrado.', 'success');
+            }
+
+            cerrarModalCamionero();
+            guardar();
+            renderListaCamioneros();
+        });
+
+        // Click en card de camionero
+        document.getElementById('lista-camioneros')?.addEventListener('click', e => {
+            const delBtn = e.target.closest('.camionero-card-delete');
+            if (delBtn) {
+                const id = Number(delBtn.dataset.id);
+                camioneros = camioneros.filter(c => c.id !== id);
+                guardar();
+                renderListaCamioneros();
+                showToast('Camionero eliminado.', 'info');
+                return;
+            }
+            const card = e.target.closest('.camionero-card');
+            if (card) abrirPerfilCamionero(Number(card.dataset.id));
+        });
+
+        // Perfil camionero — botones
+        document.getElementById('btn-cerrar-perfil')?.addEventListener('click', cerrarPerfilCamionero);
+        document.getElementById('btn-perfil-nuevo-registro')?.addEventListener('click', () => {
+            if (camioneroPerfilId === null) return;
+            cerrarPerfilCamionero();
+            abrirModalComportamiento(camioneroPerfilId);
+        });
+        document.getElementById('btn-perfil-editar')?.addEventListener('click', () => {
+            if (camioneroPerfilId === null) return;
+            const cnr = camioneros.find(c => c.id === camioneroPerfilId);
+            cerrarPerfilCamionero();
+            abrirModalCamionero(cnr);
+        });
+
+        // Modal comportamiento
+        document.getElementById('btn-cerrar-comportamiento')?.addEventListener('click', cerrarModalComportamiento);
+        document.getElementById('btn-cancelar-comportamiento')?.addEventListener('click', cerrarModalComportamiento);
+        document.getElementById('form-comportamiento')?.addEventListener('submit', e => {
+            e.preventDefault();
+            const cnrId = parseInt(document.getElementById('comp-camionero-id').value);
+            const cnr = camioneros.find(c => c.id === cnrId);
+            if (!cnr) return;
+
+            const registro = {
+                fecha:        document.getElementById('comp-fecha').value,
+                ruta:         document.getElementById('comp-ruta').value,
+                puntualidad:  document.getElementById('comp-puntualidad').value,
+                incidencias:  document.getElementById('comp-incidencias').value.trim(),
+                bono:         document.getElementById('comp-bono').value,
+                obs:          document.getElementById('comp-obs').value.trim()
+            };
+
+            if (!cnr.historial) cnr.historial = [];
+            cnr.historial.push(registro);
+            guardar();
+            renderListaCamioneros();
+            cerrarModalComportamiento();
+            showToast('Registro guardado.', 'success');
         });
 
         // Modal Datos del Viaje
@@ -976,7 +1473,10 @@
             const id = document.getElementById('cam-id').value;
             const nombre = document.getElementById('cam-nombre').value.trim();
             const patente = document.getElementById('cam-patente').value.trim().toUpperCase();
-            const get = id => parseFloat(document.getElementById(id)?.value) || 0;
+            const getN = fid => parseFloat(document.getElementById(fid)?.value) || 0;
+            const camioneroId = parseInt(document.getElementById('cam-camionero-select')?.value) || null;
+            // Derivar nombre de camionero para retrocompatibilidad de display
+            const camioneroNombre = camioneroId ? (camioneros.find(c => c.id === camioneroId)?.nombre || '') : '';
 
             if (!nombre) {
                 showToast('Ponle un nombre al camion.', 'error');
@@ -986,13 +1486,14 @@
             const datos = {
                 nombre,
                 patente,
-                camionero:    document.getElementById('cam-camionero').value.trim(),
-                peso:         get('cam-peso') || 20,
-                alto:         get('cam-alto') || 4.0,
-                largo:        get('cam-largo') || 18,
-                ancho:        get('cam-ancho') || 2.5,
-                consumoVacio: get('cam-cons-vacio') || 25,
-                consumoLleno: get('cam-cons-cargado') || 38
+                camionero:    camioneroNombre,
+                camioneroId,
+                peso:         getN('cam-peso') || 20,
+                alto:         getN('cam-alto') || 4.0,
+                largo:        getN('cam-largo') || 18,
+                ancho:        getN('cam-ancho') || 2.5,
+                consumoVacio: getN('cam-cons-vacio') || 25,
+                consumoLleno: getN('cam-cons-cargado') || 38
             };
 
             if (id) {
@@ -1103,6 +1604,9 @@
                     cerrarModalCamion();
                     cerrarDetalle();
                     cerrarModalViaje();
+                    cerrarModalCamionero();
+                    cerrarModalComportamiento();
+                    cerrarPerfilCamionero();
                 }
             });
         });
@@ -1270,6 +1774,7 @@
         setupAutocompletado('destino', 'sugerencias-destino');
         bindEvents();
         renderListaCamiones();
+        renderListaCamioneros();
         render();
 
         if (camiones.length === 0) irATab('camiones');

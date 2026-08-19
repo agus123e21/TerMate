@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerMate — Demo de Rutas y Remitos</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        :root {
+            --bg-color: #f1f5f9;
+            --panel-bg: #ffffff;
+            --panel-border: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --input-bg: #f8fafc;
+            --input-border: #cbd5e1;
+            --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --shadow-premium: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 1.25rem 2rem;
+            background: #ffffff;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 10;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.025em;
+        }
+
+        .header-title svg {
+            color: var(--primary);
+        }
+
+        .badge-status {
+            font-size: 0.75rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            background: rgba(16, 185, 129, 0.08);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .badge-status::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+        }
+
+        .container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            height: calc(100vh - 69px);
+        }
+
+        /* PANEL IZQUIERDO */
+        .sidebar-panel {
+            background: var(--panel-bg);
+            border-right: 1px solid var(--panel-border);
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+            overflow-y: auto;
+            box-shadow: 4px 0 24px rgba(15, 23, 42, 0.02);
+        }
+
+        .panel-section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            margin-bottom: 1rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-control {
+            font-family: inherit;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+        }
+
+        .input-control:focus {
+            outline: none;
+            background: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+        }
+
+        .btn {
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 0.85rem 1.25rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: var(--text-main);
+            border: 1px solid var(--panel-border);
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        /* METRICAS DE RESULTADOS */
+        .results-card {
+            background: #f8fafc;
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
+        }
+
+        .results-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.85rem;
+        }
+
+        .metric-item {
+            background: #ffffff;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border);
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.015);
+        }
+
+        .metric-value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.03em;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* CONTINGENCIA */
+        .contingency-box {
+            background: rgba(245, 158, 11, 0.07);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            font-size: 0.8rem;
+            color: #b45309;
+            line-height: 1.5;
+            display: none;
+            margin-top: 1rem;
+        }
+
+        /* MAP PANEL */
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: #e2e8f0;
+        }
+
+        .map-overlay-tip {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--panel-border);
+            padding: 0.6rem 1.1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 10;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-main);
+            box-shadow: var(--shadow-premium);
+        }
+
+        .map-overlay-tip::before {
+            content: 'ℹ';
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        /* SPINNER */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2.5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+            padding: 0.85rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: none;
+            line-height: 1.4;
+            margin-bottom: 1rem;
+        }
+
+        /* LIST OF TRIPS */
+        .trips-section {
+            border-top: 1px solid var(--panel-border);
+            padding-top: 1.25rem;
+            margin-top: auto;
+        }
+
+        .trips-list {
+            margin-top: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .trip-pill {
+            background: #f8fafc;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .trip-pill:hover {
+            border-color: #cbd5e1;
+            background: #f1f5f9;
+        }
+
+        .trip-route-desc {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 230px;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .trip-km {
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* CUSTOM PINS */
+        .custom-pin-start {
+            background-color: var(--accent-green);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+
+        .custom-pin-end {
+            background-color: var(--accent-red);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="11" width="15" height="10" rx="1"/>
+                <path d="M16 11l4 3v7h-4V11z"/>
+                <circle cx="5.5" cy="21" r="1.5"/>
+                <circle cx="18.5" cy="21" r="1.5"/>
+                <path d="M1 8h9M1 5h6"/>
+            </svg>
+            <span>TerMate Logística — Demo</span>
+        </div>
+        <div class="badge-status">
+            Zona de Cobertura: Argentina
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- PANEL IZQUIERDO -->
+        <div class="sidebar-panel">
+            <div>
+                <h3 class="panel-section-title">
+                    <span style="color: var(--primary);">📍</span> Rutas Nacionales
+                </h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                    Búsqueda geolocalizada en el territorio argentino.
+                </p>
+
+                <div class="form-group">
+                    <label for="input-origen">Ciudad de Carga (Origen)</label>
+                    <input type="text" id="input-origen" class="input-control" placeholder="Ej: Cordoba Capital" value="Cordoba Capital">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-destino">Ciudad de Descarga (Destino)</label>
+                    <input type="text" id="input-destino" class="input-control" placeholder="Ej: Buenos Aires Obelisco" value="Buenos Aires Obelisco">
+                </div>
+
+                <!-- ALERTA DE ERROR -->
+                <div id="api-error-alert" class="alert-error"></div>
+
+                <button id="btn-calcular" class="btn btn-primary" style="margin-top: 0.5rem;">
+                    <span>Calcular Mejor Ruta</span>
+                </button>
+            </div>
+
+            <!-- RESULTADOS DEL REMITO -->
+            <div id="results-container" class="results-card">
+                <div class="results-title">
+                    <span>Métricas del Remito</span>
+                    <span id="label-modo" style="font-size: 0.75rem; color: var(--accent-green); font-weight: 700;">Autocompletado</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-value"><span id="metric-distancia">--</span> km</div>
+                        <div class="metric-label">Distancia</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value"><span id="metric-tiempo">--</span></div>
+                        <div class="metric-label">Tiempo Est.</div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.25rem;">
+                    <label for="input-manual-distancia" id="lbl-manual-distancia" style="display:none; font-size: 0.75rem;">Kilómetros (Modo Manual)</label>
+                    <input type="number" id="input-manual-distancia" class="input-control" style="display:none;" min="0" placeholder="Ingresar km manualmente">
+                </div>
+
+                <div class="contingency-box" id="contingency-info">
+                    ⚠️ <strong>Modo Fallback:</strong> No pudimos calcular la ruta exacta automáticamente. Modifica los kilómetros de manera manual arriba.
+                </div>
+
+                <div style="margin-top: 1.25rem; display: flex; gap: 0.6rem;">
+                    <button id="btn-guardar-remito" class="btn btn-primary" style="flex:1;" disabled>Emitir Remito</button>
+                    <button id="btn-reset" class="btn btn-secondary">Limpiar</button>
+                </div>
+            </div>
+
+            <!-- HISTORIAL DE REMITOS MOCK EN LOCALSTORAGE -->
+            <div class="trips-section">
+                <h4 style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform:uppercase; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Remitos Emitidos</span>
+                    <span id="trips-count" style="font-weight:800; background: #e2e8f0; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem;">0</span>
+                </h4>
+                <div id="trips-list" class="trips-list">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL DEL MAPA -->
+        <div class="map-container">
+            <div class="map-overlay-tip" id="map-tip">
+                <span>Doble clic sobre marcador para moverlo</span>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // Delimitar mapa estrictamente al territorio argentino
+        const argentinaBounds = L.latLngBounds(
+            [-56.0, -76.0], 
+            [-21.0, -52.0]  
+        );
+
+        let map;
+        let routeShadowLayer = null;
+        let routeMainLayer = null;
+        let markerOrigen = null;
+        let markerDestino = null;
+        let coordinates = {
+            origen: null, 
+            destino: null 
+        };
+        let isFallbackMode = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            loadSavedRemitos();
+            setupEventListeners();
+        });
+
+        function initMap() {
+            map = L.map('map', {
+                doubleClickZoom: false,
+                maxBounds: argentinaBounds,
+                maxBoundsViscosity: 0.85,
+                minZoom: 4,
+                // Configuraciones para máxima suavidad de zoom y scroll
+                zoomAnimation: true,
+                zoomAnimationThreshold: 10,
+                fadeAnimation: true,
+                markerZoomAnimation: true,
+                inertia: true,
+                inertiaDeceleration: 3000,
+                easeLinearity: 0.2
+            }).setView([-38.4161, -63.6167], 5);
+
+            // Capa de mapa gris neutra y elegante (CartoDB Positron) - Suave con los ojos, no tan brillante/blanca
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
+        }
+
+        function setupEventListeners() {
+            document.getElementById('btn-calcular').addEventListener('click', () => calculateRoute(true));
+            document.getElementById('btn-reset').addEventListener('click', resetView);
+            document.getElementById('btn-guardar-remito').addEventListener('click', saveRemito);
+            
+            document.getElementById('input-manual-distancia').addEventListener('input', (e) => {
+                const manualVal = parseFloat(e.target.value) || 0;
+                document.getElementById('metric-distancia').textContent = manualVal.toFixed(1);
+                
+                if (manualVal > 0) {
+                    const horas = Math.floor(manualVal / 70);
+                    const minutos = Math.round(((manualVal % 70) / 70) * 60);
+                    document.getElementById('metric-tiempo').textContent = horas > 0 ? `${horas}h ${minutos}m` : `${minutos}m`;
+                }
+            });
+        }
+
+        async function calculateRoute(shouldFitBounds = false) {
+            const btn = document.getElementById('btn-calcular');
+            const alertBox = document.getElementById('api-error-alert');
+            const origText = document.getElementById('input-origen').value.trim();
+            const destText = document.getElementById('input-destino').value.trim();
+
+            if (!origText || !destText) {
+                showError("Por favor ingresa origen y destino.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Calculando...';
+            alertBox.style.display = 'none';
+            
+            // Si recalculamos, no queremos vaciar las métricas bruscamente si el usuario está viendo el mapa
+            if (shouldFitBounds) resetOutputs();
+
+            try {
+                const coordOrigen = await geocodeAddress(origText);
+                if (!coordOrigen) {
+                    throw new Error(`No encontramos el origen: "${origText}" en Argentina.`);
+                }
+
+                const coordDestino = await geocodeAddress(destText);
+                if (!coordDestino) {
+                    throw new Error(`No encontramos el destino: "${destText}" en Argentina.`);
+                }
+
+                coordinates.origen = [coordOrigen.lat, coordOrigen.lon];
+                coordinates.destino = [coordDestino.lat, coordDestino.lon];
+
+                await fetchAndDrawRoute(coordinates.origen, coordinates.destino, shouldFitBounds);
+                disableFallbackMode();
+
+            } catch (error) {
+                console.error(error);
+                showError(error.message || "Fallo en la comunicación con los servidores.");
+                enableFallbackMode();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Calcular Mejor Ruta';
+            }
+        }
+
+        async function geocodeAddress(address) {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=ar`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'TerMateLogisticaDemo/1.0'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error("Error de conexión con el servicio de ubicaciones.");
+            }
+
+            const data = await response.json();
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                
+                if (argentinaBounds.contains([lat, lon])) {
+                    return { lat, lon };
+                } else {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        async function fetchAndDrawRoute(orig, dest, shouldFitBounds = false) {
+            const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error("El calculador de rutas no responde.");
+            }
+
+            const data = await response.json();
+            if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+                throw new Error("No hay rutas transitables disponibles.");
+            }
+
+            const route = data.routes[0];
+            const distanceKm = route.distance / 1000;
+            const durationMin = route.duration / 60;
+
+            document.getElementById('metric-distancia').textContent = distanceKm.toFixed(1);
+            
+            const hrs = Math.floor(durationMin / 60);
+            const mins = Math.round(durationMin % 60);
+            document.getElementById('metric-tiempo').textContent = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+
+            document.getElementById('btn-guardar-remito').disabled = false;
+
+            drawMapRoute(orig, dest, route.geometry.coordinates, shouldFitBounds);
+        }
+
+        function drawMapRoute(orig, dest, routeCoordinates, shouldFitBounds = false) {
+            if (routeShadowLayer) map.removeLayer(routeShadowLayer);
+            if (routeMainLayer) map.removeLayer(routeMainLayer);
+            
+            const pathCoordinates = routeCoordinates.map(coord => [coord[1], coord[0]]);
+
+            // Línea doble translúcida estilo Google Maps
+            routeShadowLayer = L.polyline(pathCoordinates, {
+                color: '#818cf8',
+                weight: 9,
+                opacity: 0.45
+            }).addTo(map);
+
+            routeMainLayer = L.polyline(pathCoordinates, {
+                color: '#4f46e5',
+                weight: 4,
+                opacity: 0.95
+            }).addTo(map);
+
+            updateMarkers(orig, dest);
+
+            // Ajustar el zoom SOLAMENTE cuando se calcula inicialmente (shouldFitBounds === true)
+            // Cuando se arrastran marcadores para editar, conservamos el nivel de zoom y posición actuales del usuario
+            if (shouldFitBounds) {
+                map.fitBounds(routeMainLayer.getBounds(), { 
+                    padding: [50, 50],
+                    animate: true,
+                    duration: 0.8
+                });
+            }
+        }
+
+        function updateMarkers(orig, dest) {
+            if (markerOrigen) map.removeLayer(markerOrigen);
+            if (markerDestino) map.removeLayer(markerDestino);
+
+            markerOrigen = createInteractiveMarker(orig, 'custom-pin-start', 'Origen (Carga)');
+            markerDestino = createInteractiveMarker(dest, 'custom-pin-end', 'Destino (Descarga)');
+        }
+
+        function createInteractiveMarker(latlng, cssClass, title) {
+            const pinIcon = L.divIcon({
+                className: cssClass,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+
+            const marker = L.marker(latlng, {
+                icon: pinIcon,
+                title: title,
+                draggable: false
+            }).addTo(map);
+
+            marker.bindPopup(`<strong>${title}</strong><br>Doble clic para arrastrar.`);
+
+            marker.on('dblclick', function() {
+                if (!marker.options.draggable) {
+                    marker.dragging.enable();
+                    marker.options.draggable = true;
+                    marker.openPopup();
+                    marker.setPopupContent(`<strong>${title} (Desbloqueado)</strong><br>Arrastra libremente por el mapa.`);
+                } else {
+                    marker.dragging.disable();
+                    marker.options.draggable = false;
+                    marker.setPopupContent(`<strong>${title} (Bloqueado)</strong><br>Doble clic para volver a mover.`);
+                    marker.closePopup();
+                }
+            });
+
+            marker.on('dragend', async function() {
+                const newPos = marker.getLatLng();
+                if (!argentinaBounds.contains(newPos)) {
+                    marker.setLatLng(latlng);
+                    alert("No puedes arrastrar el marcador fuera de la zona de cobertura (Argentina).");
+                    return;
+                }
+
+                if (title.includes('Origen')) {
+                    coordinates.origen = [newPos.lat, newPos.lng];
+                } else {
+                    coordinates.destino = [newPos.lat, newPos.lng];
+                }
+                
+                try {
+                    // Calculamos la nueva ruta MANTENIENDO el zoom y posición actual (shouldFitBounds = false)
+                    await fetchAndDrawRoute(coordinates.origen, coordinates.destino, false);
+                } catch(err) {
+                    console.error("Fallo al trazar nueva ruta:", err);
+                }
+            });
+
+            return marker;
+        }
+
+        function enableFallbackMode() {
+            isFallbackMode = true;
+            document.getElementById('label-modo').textContent = 'Edición Manual';
+            document.getElementById('label-modo').style.color = 'var(--accent-amber)';
+            
+            document.getElementById('input-manual-distancia').style.display = 'block';
+            document.getElementById('lbl-manual-distancia').style.display = 'block';
+            document.getElementById('contingency-info').style.display = 'block';
+
+            document.getElementById('btn-guardar-remito').disabled = false;
+
+            if (coordinates.origen && coordinates.destino) {
+                drawMapRoute(coordinates.origen, coordinates.destino, [
+                    [coordinates.origen[1], coordinates.origen[0]],
+                    [coordinates.destino[1], coordinates.destino[0]]
+                ], false);
+            }
+        }
+
+        function disableFallbackMode() {
+            isFallbackMode = false;
+            document.getElementById('label-modo').textContent = 'Autocompletado';
+            document.getElementById('label-modo').style.color = 'var(--accent-green)';
+            
+            document.getElementById('input-manual-distancia').style.display = 'none';
+            document.getElementById('lbl-manual-distancia').style.display = 'none';
+            document.getElementById('contingency-info').style.display = 'none';
+        }
+
+        function showError(message) {
+            const alertBox = document.getElementById('api-error-alert');
+            alertBox.textContent = message;
+            alertBox.style.display = 'block';
+        }
+
+        function resetOutputs() {
+            document.getElementById('metric-distancia').textContent = '--';
+            document.getElementById('metric-tiempo').textContent = '--';
+            document.getElementById('btn-guardar-remito').disabled = true;
+        }
+
+        function resetView() {
+            document.getElementById('input-origen').value = '';
+            document.getElementById('input-destino').value = '';
+            document.getElementById('input-manual-distancia').value = '';
+            document.getElementById('api-error-alert').style.display = 'none';
+            
+            coordinates = { origen: null, destino: null };
+            
+            if (routeShadowLayer) map.removeLayer(routeShadowLayer);
+            if (routeMainLayer) map.removeLayer(routeMainLayer);
+            if (markerOrigen) map.removeLayer(markerOrigen);
+            if (markerDestino) map.removeLayer(markerDestino);
+            
+            routeShadowLayer = null;
+            routeMainLayer = null;
+            markerOrigen = null;
+            markerDestino = null;
+
+            disableFallbackMode();
+            resetOutputs();
+            map.setView([-38.4161, -63.6167], 5);
+        }
+
+        function saveRemito() {
+            const orig = document.getElementById('input-origen').value;
+            const dest = document.getElementById('input-destino').value;
+            const dist = document.getElementById('metric-distancia').textContent;
+            const time = document.getElementById('metric-tiempo').textContent;
+            
+            const remito = {
+                id: 'REM-' + Date.now().toString().slice(-6),
+                origen: orig,
+                destino: dest,
+                distancia: dist,
+                tiempo: time,
+                fecha: new Date().toLocaleDateString('es-AR')
+            };
+
+            let remitos = JSON.parse(localStorage.getItem('termate_remitos_demo')) || [];
+            remitos.unshift(remito);
+            localStorage.setItem('termate_remitos_demo', JSON.stringify(remitos));
+
+            loadSavedRemitos();
+            alert(`Remito ${remito.id} emitido con éxito!`);
+        }
+
+        function loadSavedRemitos() {
+            const listContainer = document.getElementById('trips-list');
+            const countLabel = document.getElementById('trips-count');
+            const remitos = JSON.parse(localStorage.getItem('termate_remitos_demo')) || [];
+
+            countLabel.textContent = remitos.length;
+            listContainer.innerHTML = '';
+
+            if (remitos.length === 0) {
+                listContainer.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted); padding:0.5rem; text-align:center;">No hay remitos emitidos.</div>';
+                return;
+            }
+
+            remitos.forEach(rem => {
+                const pill = document.createElement('div');
+                pill.className = 'trip-pill';
+                pill.innerHTML = `
+                    <div>
+                        <strong style="color:var(--text-main); font-size:0.75rem;">${rem.id}</strong>
+                        <div class="trip-route-desc" title="${rem.origen} -> ${rem.destino}">${rem.origen.split(',')[0]} ➜ ${rem.destino.split(',')[0]}</div>
+                    </div>
+                    <span class="trip-km">${rem.distancia} km</span>
+                `;
+                listContainer.appendChild(pill);
+            });
+        }
+    </script>
+</body>
+</html>

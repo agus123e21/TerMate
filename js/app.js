@@ -53,7 +53,7 @@
     // ═══════════════════════════════════════════════════════════
     // 2. REGISTRO SERVICE WORKER (PWA)
     // ═══════════════════════════════════════════════════════════
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         navigator.serviceWorker.register('./sw.js')
             .catch(err => console.warn('[SW] Error registro:', err));
     }
@@ -126,16 +126,148 @@
         }
     }
 
+    const KEY_SERPAPI_KEY    = 'termate_serpapi_key';
+    const DEFAULT_SERPAPI_KEY = 'secret_api_key';
+    const SERPAPI_BASE_URL   = 'https://serpapi.com/search';
+
+    function obtenerSerpApiKey() {
+        return localStorage.getItem(KEY_SERPAPI_KEY) || DEFAULT_SERPAPI_KEY;
+    }
+
+    function guardarSerpApiKey(key) {
+        if (key) {
+            localStorage.setItem(KEY_SERPAPI_KEY, key.trim());
+        } else {
+            localStorage.removeItem(KEY_SERPAPI_KEY);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
-    // 5. GEOCODIFICACIÓN FEDERAL (NOMINATIM NACIONAL)
+    // 5. GEOCODIFICACIÓN Y MAPAS (SERPAPI GOOGLE MAPS ENGINE)
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Búsqueda en Nominatim restringida estrictamente a Argentina.
-     * Retorna sugerencias formateadas con la localidad y provincia correctas.
+     * Helper para peticiones a SerpApi con manejo transparente de CORS en navegador
+     */
+    async function fetchSerpApi(paramsObj) {
+        const apiKey = obtenerSerpApiKey();
+        const params = new URLSearchParams(paramsObj);
+        if (apiKey && !params.has('api_key')) {
+            params.append('api_key', apiKey);
+        }
+
+        const rawUrl = `${SERPAPI_BASE_URL}?${params.toString()}`;
+
+        // 1. Intentar fetch directo
+        try {
+            const res = await fetch(rawUrl, { signal: AbortSignal.timeout(5000) });
+            if (res.ok) return await res.json();
+        } catch (e) {
+            console.warn('[SerpApi] Fetch directo falló (posible CORS), usando proxy corsproxy.io...', e);
+        }
+
+        // 2. Intentar vía corsproxy.io
+        try {
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rawUrl)}`;
+            const resProxy = await fetch(proxyUrl, { signal: AbortSignal.timeout(7000) });
+            if (resProxy.ok) return await resProxy.json();
+        } catch (e) {
+            console.warn('[SerpApi] Proxy corsproxy.io falló, usando allorigins.win...', e);
+        }
+
+        // 3. Intentar vía allorigins.win
+        try {
+            const proxyUrl2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+            const resProxy2 = await fetch(proxyUrl2, { signal: AbortSignal.timeout(7000) });
+            if (resProxy2.ok) return await resProxy2.json();
+        } catch (e) {
+            console.error('[SerpApi] Fallaron las peticiones:', e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Búsqueda en el motor Google Maps a través de la API de SerpApi
+     * URL Oficial: https://serpapi.com/search?engine=google_maps
+     */
+    async function buscarSerpApiGoogleMaps(query) {
+        if (!query || query.trim().length < 2 || !navigator.onLine) return [];
+
+        const data = await fetchSerpApi({
+            engine: 'google_maps',
+            q: query,
+            gl: 'ar',
+            hl: 'es'
+        });
+
+        if (!data) return [];
+        const sugerencias = [];
+
+        // 1. Procesar local_results
+        if (Array.isArray(data.local_results)) {
+            data.local_results.forEach(item => {
+                if (item.gps_coordinates?.latitude && item.gps_coordinates?.longitude) {
+                    const title = item.title || query;
+                    const address = item.address || item.snippet || 'Argentina';
+                    sugerencias.push({
+                        completo: `${title}, ${address}`,
+                        principal: title,
+                        secundario: address,
+                        lat: parseFloat(item.gps_coordinates.latitude),
+                        lon: parseFloat(item.gps_coordinates.longitude),
+                        fuente: 'Google Maps (SerpApi)',
+                        rating: item.rating || null,
+                        reviews: item.reviews || null,
+                        placeId: item.place_id || null
+                    });
+                }
+            });
+        }
+
+        // 2. Procesar place_results
+        if (data.place_results?.gps_coordinates) {
+            const place = data.place_results;
+            if (place.gps_coordinates.latitude && place.gps_coordinates.longitude) {
+                const title = place.title || query;
+                const address = place.address || 'Argentina';
+                const lat = parseFloat(place.gps_coordinates.latitude);
+                const lon = parseFloat(place.gps_coordinates.longitude);
+
+                const yaExiste = sugerencias.some(s => Math.abs(s.lat - lat) < 0.0001 && Math.abs(s.lon - lon) < 0.0001);
+                if (!yaExiste) {
+                    sugerencias.unshift({
+                        completo: `${title}, ${address}`,
+                        principal: title,
+                        secundario: address,
+                        lat: lat,
+                        lon: lon,
+                        fuente: 'Google Maps (SerpApi)',
+                        rating: place.rating || null,
+                        reviews: place.reviews || null,
+                        placeId: place.place_id || null
+                    });
+                }
+            }
+        }
+
+        return sugerencias;
+    }
+
+    /**
+     * Búsqueda de sugerencias federales en Argentina.
+     * Consulta primeramente SerpApi Google Maps Engine y utiliza Nominatim como fallback.
      */
     async function buscarSugerenciasFederales(query) {
         if (query.length < 3 || !navigator.onLine) return [];
+
+        // 1. Intentar SerpApi Google Maps API (https://serpapi.com/search?engine=google_maps)
+        const sugsSerp = await buscarSerpApiGoogleMaps(query);
+        if (sugsSerp.length > 0) {
+            return sugsSerp;
+        }
+
+        // 2. Fallback a Nominatim (OpenStreetMap)
         try {
             const params = new URLSearchParams({
                 q: query,
@@ -152,9 +284,7 @@
             const data = await res.json();
 
             return data.map(item => {
-                const addr = item.address;
-                
-                // Formatear dirección limpia
+                const addr = item.address || {};
                 const calle = addr.road || addr.pedestrian || addr.suburb || '';
                 const altura = addr.house_number ? ` ${addr.house_number}` : '';
                 const localidad = addr.city || addr.town || addr.village || addr.locality || '';
@@ -176,7 +306,8 @@
                     principal,
                     secundario,
                     lat: parseFloat(item.lat),
-                    lon: parseFloat(item.lon)
+                    lon: parseFloat(item.lon),
+                    fuente: 'OpenStreetMap'
                 };
             });
         } catch {
@@ -190,6 +321,18 @@
         if (cacheGeo[key]) return cacheGeo[key];
 
         if (navigator.onLine) {
+            // Priorizar SerpApi Google Maps Engine
+            try {
+                const resSerp = await buscarSerpApiGoogleMaps(direccion);
+                if (resSerp.length > 0 && resSerp[0].lat && resSerp[0].lon) {
+                    const coords = [resSerp[0].lat, resSerp[0].lon];
+                    cacheGeo[key] = coords;
+                    guardarGeoCache();
+                    return coords;
+                }
+            } catch {}
+
+            // Fallback a Nominatim
             try {
                 const params = new URLSearchParams({
                     q: direccion,
@@ -348,10 +491,25 @@
     // ═══════════════════════════════════════════════════════════
     // 7. MAPAS LEAFLET DUALES
     // ═══════════════════════════════════════════════════════════
-    function initMapas() {
-        const osmAttrib = '© OpenStreetMap, © CARTO';
-        const tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    let currentTileLayerFull = null;
+    const TILE_PROVIDERS = {
+        dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        streets: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    };
 
+    function cambiarCapaMapa(map, layerType) {
+        if (!map) return;
+        const url = TILE_PROVIDERS[layerType] || TILE_PROVIDERS.dark;
+        const attrib = layerType === 'satellite' ? '© Esri, Maxar' : '© OpenStreetMap, © CARTO';
+        
+        if (currentTileLayerFull) {
+            map.removeLayer(currentTileLayerFull);
+        }
+        currentTileLayerFull = L.tileLayer(url, { attribution: attrib, maxZoom: 19 }).addTo(map);
+    }
+
+    function initMapas() {
         const argentinaBounds = L.latLngBounds(
             L.latLng(-55.1, -73.6),  // Sur-Oeste (Tierra del Fuego)
             L.latLng(-21.8, -53.6)   // Norte-Este (Misiones)
@@ -385,22 +543,29 @@
         }
 
         function addArgentinaOverlay(map) {
+            if (!location.protocol.startsWith('http')) {
+                console.warn('[Mapa] Protocolo local file:// detectado. Omitiendo overlay de provincias para evitar bloqueo CORS de navegador.');
+                return;
+            }
             fetch('data/argentina-provinces.geojson')
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP Error');
+                    return r.json();
+                })
                 .then(geo => {
                     L.geoJSON(geo, {
                         style: () => argStyle,
                         onEachFeature: (_f, layer) => onEachProvince(layer)
                     }).addTo(map);
                 })
-                .catch(err => console.error('Error cargando provincias:', err));
+                .catch(err => console.warn('Carga de provincias omitida:', err));
         }
 
         // 1. Mapa Full (Tab principal de Mapa)
         if (!mapaFull && document.getElementById('mapa')) {
             try {
                 mapaFull = L.map('mapa', mapOpts).setView([-38.4, -63.6], 4);
-                L.tileLayer(tileUrl, { attribution: osmAttrib, maxZoom: 19 }).addTo(mapaFull);
+                cambiarCapaMapa(mapaFull, 'dark');
                 addArgentinaOverlay(mapaFull);
             } catch (err) {
                 console.error(err);
@@ -411,12 +576,167 @@
         if (!mapaInline && document.getElementById('mapa-inline')) {
             try {
                 mapaInline = L.map('mapa-inline', mapOpts).setView([-38.4, -63.6], 4);
-                L.tileLayer(tileUrl, { attribution: osmAttrib, maxZoom: 19 }).addTo(mapaInline);
+                L.tileLayer(TILE_PROVIDERS.dark, { attribution: '© CARTO', maxZoom: 19 }).addTo(mapaInline);
                 addArgentinaOverlay(mapaInline);
             } catch (err) {
                 console.error(err);
             }
         }
+
+        // Event listeners para botones de capas
+        document.querySelectorAll('.map-layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cambiarCapaMapa(mapaFull, btn.dataset.layer);
+            });
+        });
+
+        // Setup buscador en mapa principal con SerpApi
+        setupAutocompletado('map-search-input', 'map-search-sugerencias');
+    }
+
+    let poiMarcadores = { gasolina: [], comida: [] };
+    let poiActivo = { gasolina: false, comida: false };
+
+    function crearIconoCombustible() {
+        const svg = `<div class="poi-marker-icon" style="background:#10b981; width:28px; height:28px; border:2px solid #0f172a;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" width="14" height="14">
+                <path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/><path d="M14 22V14a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v8"/><line x1="18" y1="12" x2="18" y2="7"/>
+            </svg>
+        </div>`;
+        return L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
+    }
+
+    function crearIconoComida() {
+        const svg = `<div class="poi-marker-icon" style="background:#f59e0b; width:28px; height:28px; border:2px solid #0f172a;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" width="14" height="14">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+            </svg>
+        </div>`;
+        return L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
+    }
+
+    const POIS_ARGENTINA_FALLBACK = {
+        gasolina: [
+            { titulo: 'YPF ACA Rosario Central', direccion: 'Autopista Bs As - Rosario Km 285', lat: -32.958, lon: -60.672, rating: 4.6, reviews: 340 },
+            { titulo: 'Shell Full Pilar', direccion: 'Panamericana Km 50, Pilar, Bs As', lat: -34.456, lon: -58.912, rating: 4.5, reviews: 280 },
+            { titulo: 'YPF Opessa Córdoba Norte', direccion: 'Av. Circunvalación Km 12, Córdoba', lat: -31.385, lon: -64.195, rating: 4.7, reviews: 410 },
+            { titulo: 'Axion Energy San Nicolás', direccion: 'Ruta Nacional 9 Km 230, San Nicolás', lat: -33.342, lon: -60.221, rating: 4.4, reviews: 195 },
+            { titulo: 'Puma Energy Villa María', direccion: 'Ruta 9 Km 555, Villa María, Córdoba', lat: -32.408, lon: -63.242, rating: 4.3, reviews: 150 },
+            { titulo: 'YPF ACA Mendoza Mercaderes', direccion: 'Acceso Este Km 10, Mendoza', lat: -32.898, lon: -68.795, rating: 4.8, reviews: 520 },
+            { titulo: 'YPF Bahía Blanca Sur', direccion: 'Ruta 3 Km 695, Bahía Blanca', lat: -38.728, lon: -62.245, rating: 4.5, reviews: 230 },
+            { titulo: 'YPF San Luis Centro', direccion: 'Autopista de las Serranías Puntanas Km 790, San Luis', lat: -33.298, lon: -66.335, rating: 4.6, reviews: 210 }
+        ],
+        comida: [
+            { titulo: 'Parador de Camiones "El Tronco"', direccion: 'Ruta Nacional 9 Km 145, Baradero', lat: -33.812, lon: -59.505, rating: 4.7, reviews: 480 },
+            { titulo: 'Comedor y Descanso "La Querencia"', direccion: 'Ruta 7 Km 260, Junín, Bs As', lat: -34.582, lon: -60.945, rating: 4.6, reviews: 310 },
+            { titulo: 'Parador Camionero "El Cruce"', direccion: 'Cruce Ruta 3 y 226, Azul, Bs As', lat: -36.782, lon: -59.858, rating: 4.8, reviews: 620 },
+            { titulo: 'Restaurante de Ruta "El Rutero"', direccion: 'Ruta 14 Km 120, Concepción del Uruguay', lat: -32.485, lon: -58.262, rating: 4.5, reviews: 270 },
+            { titulo: 'Parador "La Posta del Camionero"', direccion: 'Ruta 34 Km 220, Rafaela, Santa Fe', lat: -31.252, lon: -61.488, rating: 4.4, reviews: 185 },
+            { titulo: 'Comedor de Campo "Las Rosas"', direccion: 'Ruta 8 Km 180, Pergamino, Bs As', lat: -33.892, lon: -60.575, rating: 4.6, reviews: 390 }
+        ]
+    };
+
+    async function buscarPOIsSerpApi(categoria) {
+        let pois = [];
+
+        if (navigator.onLine) {
+            let query = (categoria === 'gasolina')
+                ? 'estacion de servicio YPF Shell Axion Puma Argentina'
+                : 'parador de camiones restaurante comedor de ruta descanso Argentina';
+
+            const paramsObj = {
+                engine: 'google_maps',
+                q: query,
+                gl: 'ar',
+                hl: 'es'
+            };
+
+            if (mapaFull) {
+                const center = mapaFull.getCenter();
+                const zoom = Math.round(mapaFull.getZoom());
+                paramsObj.ll = `@${center.lat.toFixed(5)},${center.lng.toFixed(5)},${zoom}z`;
+            }
+
+            const data = await fetchSerpApi(paramsObj);
+
+            if (data && Array.isArray(data.local_results)) {
+                data.local_results.forEach(item => {
+                    if (item.gps_coordinates?.latitude && item.gps_coordinates?.longitude) {
+                        pois.push({
+                            titulo: item.title || 'Parada de Ruta',
+                            direccion: item.address || item.snippet || 'Argentina',
+                            lat: parseFloat(item.gps_coordinates.latitude),
+                            lon: parseFloat(item.gps_coordinates.longitude),
+                            rating: item.rating || null,
+                            reviews: item.reviews || null,
+                            tipo: categoria
+                        });
+                    }
+                });
+            }
+        }
+
+        // Si la API falla o no retorna lugares en la consulta, combinar con dataset predeterminado de Argentina
+        if (pois.length === 0) {
+            pois = POIS_ARGENTINA_FALLBACK[categoria] || [];
+        }
+
+        return pois;
+    }
+
+    async function togglePOIMapa(categoria) {
+        if (!mapaFull) return;
+
+        poiActivo[categoria] = !poiActivo[categoria];
+        const btnId = categoria === 'gasolina' ? 'btn-poi-combustible' : 'btn-poi-comida';
+        const btn = document.getElementById(btnId);
+
+        if (!poiActivo[categoria]) {
+            if (btn) btn.classList.remove('active');
+            poiMarcadores[categoria].forEach(m => mapaFull.removeLayer(m));
+            poiMarcadores[categoria] = [];
+            showToast(`Ocultando paradas de ${categoria === 'gasolina' ? 'estaciones de servicio' : 'comida y descanso'}.`, 'info');
+            return;
+        }
+
+        if (btn) btn.classList.add('active');
+        showToast(`Cargando ${categoria === 'gasolina' ? 'estaciones de servicio' : 'paradores de comida'} en Google Maps...`, 'info');
+
+        const pois = await buscarPOIsSerpApi(categoria);
+
+        if (pois.length === 0) {
+            showToast('No se encontraron paradas cercanas en este momento.', 'warning');
+            if (btn) btn.classList.remove('active');
+            poiActivo[categoria] = false;
+            return;
+        }
+
+        const icono = categoria === 'gasolina' ? crearIconoCombustible() : crearIconoComida();
+
+        pois.forEach(p => {
+            const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(mapaFull);
+            const popupHtml = `<div class="popup-titulo" style="color:${categoria === 'gasolina' ? '#34d399' : '#fbbf24'}">
+                ${categoria === 'gasolina' ? '⛽ Estación de Servicio' : '🍽️ Parador / Resto'}
+            </div>
+            <div class="popup-linea"><strong>${p.titulo}</strong></div>
+            <div class="popup-linea">${p.direccion}</div>
+            ${p.rating ? `<div class="popup-linea" style="color:#fbbf24;font-weight:600">★ ${p.rating} (${p.reviews || 0} opiniones)</div>` : ''}
+            <div class="popup-linea" style="font-size:0.75rem;opacity:0.85;margin-top:4px">Obtenido de Google Maps vía SerpApi</div>`;
+            m.bindPopup(popupHtml);
+            poiMarcadores[categoria].push(m);
+        });
+
+        // Centrar mapa suavemente para abarcar las paradas si hay marcadores
+        if (poiMarcadores[categoria].length > 0) {
+            try {
+                const group = L.featureGroup(poiMarcadores[categoria]);
+                mapaFull.fitBounds(group.getBounds().pad(0.1));
+            } catch {}
+        }
+
+        showToast(`Se mostraron ${pois.length} paradas de ${categoria === 'gasolina' ? 'combustible' : 'comida'} en el mapa.`, 'success');
     }
 
     function crearIcono(color) {
@@ -450,6 +770,19 @@
     function renderMapas() {
         actualizarMapa(mapaFull, marcadoresFull, polylinesFull, true);
         actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+
+        // Actualizar estadísticas del mapa flotante
+        const rutasCount = envios.length;
+        const transitoCount = envios.filter(e => e.estado === 'En Transito').length;
+        const totalDist = envios.reduce((acc, e) => acc + (e.distancia || 0), 0);
+
+        const elRutas = document.getElementById('map-stat-rutas');
+        const elTransito = document.getElementById('map-stat-transito');
+        const elDist = document.getElementById('map-stat-distancia');
+
+        if (elRutas) elRutas.textContent = rutasCount;
+        if (elTransito) elTransito.textContent = transitoCount;
+        if (elDist) elDist.textContent = formatoDistancia(totalDist);
     }
 
     function actualizarMapa(instanciaMapa, refMarcadores, refPolylines, incluirTodos) {
@@ -703,12 +1036,20 @@
                 const sugs = await buscarSugerenciasFederales(q);
                 if (sugs.length === 0) { lista.classList.remove('visible'); return; }
 
-                lista.innerHTML = sugs.map(s =>
-                    `<li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${s.completo}">
-                        <span class="sug-principal">${s.principal}</span>
-                        <span class="sug-secundario">${s.secundario}</span>
-                    </li>`
-                ).join('');
+                lista.innerHTML = sugs.map(s => {
+                    const badgeHtml = s.fuente ? `<span class="sug-badge ${s.fuente.includes('Google') ? 'sug-badge--google' : ''}">${s.fuente}</span>` : '';
+                    const ratingHtml = (s.rating && s.rating > 0) ? `<span class="sug-rating">★ ${s.rating}${s.reviews ? ` (${s.reviews})` : ''}</span>` : '';
+                    return `<li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${s.completo}">
+                        <div class="sug-main-row">
+                            <span class="sug-principal">${s.principal}</span>
+                            ${badgeHtml}
+                        </div>
+                        <div class="sug-sub-row">
+                            <span class="sug-secundario">${s.secundario}</span>
+                            ${ratingHtml}
+                        </div>
+                    </li>`;
+                }).join('');
                 lista.classList.add('visible');
             }, 300);
         });
@@ -1263,6 +1604,34 @@
 
         document.getElementById('btn-cancelar-edicion')?.addEventListener('click', cancelarEdicion);
         document.getElementById('btn-ver-mapa-resultado')?.addEventListener('click', () => irATab('mapa'));
+
+        // Modal SerpApi Google Maps Engine Config
+        const modalSerpApi = document.getElementById('modal-serpapi');
+        const inputSerpKey = document.getElementById('input-serpapi-key');
+
+        document.getElementById('btn-open-serpapi-modal')?.addEventListener('click', () => {
+            if (inputSerpKey) inputSerpKey.value = obtenerSerpApiKey();
+            modalSerpApi?.classList.remove('hidden');
+        });
+        document.getElementById('btn-cerrar-modal-serpapi')?.addEventListener('click', () => {
+            modalSerpApi?.classList.add('hidden');
+        });
+        document.getElementById('btn-guardar-serpapi-key')?.addEventListener('click', () => {
+            const key = inputSerpKey?.value || '';
+            guardarSerpApiKey(key);
+            showToast(key ? 'API Key de SerpApi guardada.' : 'API Key eliminada.', key ? 'success' : 'info');
+            modalSerpApi?.classList.add('hidden');
+        });
+        document.getElementById('btn-borrar-serpapi-key')?.addEventListener('click', () => {
+            guardarSerpApiKey('');
+            if (inputSerpKey) inputSerpKey.value = '';
+            showToast('API Key de SerpApi eliminada.', 'info');
+            modalSerpApi?.classList.add('hidden');
+        });
+
+        // Botones POI (Estaciones de Servicio y Paradores/Comidas)
+        document.getElementById('btn-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina'));
+        document.getElementById('btn-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida'));
 
         // Tab triggers (Bottom Nav & Sidebar)
         document.querySelectorAll('.nav-btn, .sidebar-btn').forEach(btn => {

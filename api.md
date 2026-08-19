@@ -6,49 +6,62 @@ Este documento detalla el funcionamiento técnico, endpoints, parámetros y form
 
 ## 🗺️ 1. Geocodificación y Autocompletado
 
-### 1.1 Nominatim (OpenStreetMap) — Búsqueda Federal
-Utilizada como geocodificador principal para sugerencias federales en tiempo real y fallback de coordenadas. Está restringida a la República Argentina.
+### 1.1 SerpApi — Google Maps Search Engine
+Motor principal de geocodificación y autocompletado en tiempo real. Utiliza la sintaxis del motor de Google Maps vía SerpApi (`engine=google_maps`) para resolver ubicaciones, direcciones completas y coordenadas de latitud/longitud (`gps_coordinates`).
 
 *   **Método:** `GET`
-*   **Endpoint:** `https://nominatim.openstreetmap.org/search`
-*   **Headers requeridos:**
-    *   `User-Agent: TerMate/2.1` (Evita bloqueos de tráfico por parte de la OSM Foundation)
+*   **Endpoint:** `https://serpapi.com/search?engine=google_maps` (o `https://serpapi.com/search.json?engine=google_maps`)
+*   **Link Oficial:** [https://serpapi.com/search?engine=google_maps](https://serpapi.com/search?engine=google_maps)
 
 #### Parámetros de Consulta:
 | Parámetro | Tipo | Valor / Ejemplo | Descripción |
 | :--- | :--- | :--- | :--- |
-| `q` | String | `Av. San Martin 450, Cordoba` | Texto de búsqueda ingresado por el usuario. |
-| `format` | String | `json` | Formato de respuesta esperado. |
-| `limit` | Integer | `5` | Límite máximo de sugerencias a retornar. |
-| `countrycodes`| String | `ar` | Restringe los resultados únicamente a Argentina. |
-| `addressdetails`| Integer| `1` | Desglosa la dirección en atributos (calle, ciudad, provincia). |
+| `engine` | String | `google_maps` | Especifica el motor de búsqueda de Google Maps. |
+| `q` | String | `Av Corrientes 1234, Buenos Aires` | Dirección, localidad o punto de interés buscado. |
+| `gl` | String | `ar` | Código de país para Argentina. |
+| `hl` | String | `es` | Idioma de respuesta en español. |
+| `api_key` | String | `[TU_API_KEY]` | Clave personal de SerpApi (opcional si la API está configurada libre o via proxy). |
 
 #### Ejemplo de Petición:
 ```http
-GET https://nominatim.openstreetmap.org/search?q=Av+San+Martin+450&format=json&limit=5&countrycodes=ar&addressdetails=1
+GET https://serpapi.com/search?engine=google_maps&q=Av+Corrientes+1234+Buenos+Aires&gl=ar&hl=es&api_key=YOUR_SERPAPI_KEY
 ```
 
-#### Ejemplo de Respuesta (Simplificada):
+#### Ejemplo de Respuesta (JSON):
 ```json
-[
-  {
-    "place_id": 284102941,
-    "licence": "Data © OpenStreetMap contributors, ODbL 1.0.",
-    "lat": "-31.416805",
-    "lon": "-64.188544",
-    "display_name": "Avenida General San Martín 450, Córdoba, Municipio de Córdoba, Departamento Capital, Córdoba, X5000, Argentina",
-    "address": {
-      "road": "Avenida General San Martín",
-      "house_number": "450",
-      "city": "Córdoba",
-      "state": "Córdoba",
-      "postcode": "X5000",
-      "country": "Argentina",
-      "country_code": "ar"
+{
+  "search_metadata": {
+    "id": "64c58f01b1e9c2001e4a1a2b",
+    "status": "Success",
+    "engine": "google_maps"
+  },
+  "local_results": [
+    {
+      "position": 1,
+      "title": "Av. Corrientes 1234",
+      "place_id": "ChIJN1t_tDe1vJUR...",
+      "data_id": "0x95bccac6b47f5b35:0x...",
+      "gps_coordinates": {
+        "latitude": -34.603784,
+        "longitude": -58.381561
+      },
+      "address": "Av. Corrientes 1234, C1043 AAB, Buenos Aires, Argentina",
+      "rating": 4.8,
+      "reviews": 142
     }
-  }
-]
+  ]
+}
 ```
+
+---
+
+### 1.2 Nominatim (OpenStreetMap) — Fallback Secundario
+Servicio de respaldo para resolución de direcciones en caso de indisponibilidad de red o de clave de API.
+
+*   **Método:** `GET`
+*   **Endpoint:** `https://nominatim.openstreetmap.org/search`
+*   **Headers requeridos:**
+    *   `User-Agent: TerMate/2.1`
 
 ---
 

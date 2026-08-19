@@ -43,10 +43,10 @@
 
 Este dashboard usa inteligencia artificial para hacer cosas que antes solo hacian los expertos:
 
-- La IA encuentra automaticamente las ubicaciones de tus envios en el mapa
-- La IA calcula las mejores rutas entre origenes y destinos
+- La IA y el motor **SerpApi Google Maps Engine** encuentran automáticamente las ubicaciones exactas de tus envíos en el mapa
+- La IA calcula las mejores rutas entre orígenes y destinos
 - La IA aprende de tus movimientos y acelera tu trabajo diario
-- La IA anima los vehiculos para que sepas exactamente donde estan en cada momento
+- La IA anima los vehículos para que sepas exactamente dónde están en cada momento
 
 Todo esto pasa en segundo plano, sin que tengas que hacer nada. Solo abres la pantalla y ves todo funcionando.
 

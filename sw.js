@@ -52,11 +52,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 2. APIs de georeferencia argentina → Network First, fallback cache
+  // 2. APIs de georeferencia argentina y SerpApi → Network First, fallback cache
   if (
     url.hostname.includes('apis.datos.gob.ar') ||
     url.hostname.includes('api.openrouteservice.org') ||
-    url.hostname.includes('nominatim.openstreetmap.org')
+    url.hostname.includes('nominatim.openstreetmap.org') ||
+    url.hostname.includes('serpapi.com')
   ) {
     event.respondWith(networkThenCache(event.request, API_CACHE));
     return;

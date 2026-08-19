@@ -72,6 +72,13 @@
     </nav>
 
     <div class="sidebar-footer">
+        <button id="btn-open-serpapi-modal" class="btn-serpapi-config" title="Configurar SerpApi Google Maps API Key">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                <circle cx="12" cy="9" r="2.5"/>
+            </svg>
+            <span>Google Maps API</span>
+        </button>
         <div id="indicador-conexion-sidebar" class="conexion-pill online">
             <span class="conexion-dot"></span>
             <span class="conexion-texto">Online</span>
@@ -257,6 +264,70 @@
 
     <!-- TAB: MAPA -->
     <section id="tab-mapa" class="tab-pane tab-pane--map">
+        <!-- Floating Header Controls on Map -->
+        <div class="map-overlay-header">
+            <div class="map-search-bar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="map-search-icon">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <div class="autocomplete-wrap" style="flex:1;">
+                    <input type="text" id="map-search-input" class="map-search-field" placeholder="Buscar lugar o dirección en Google Maps Argentina..." autocomplete="off">
+                    <ul id="map-search-sugerencias" class="suggestions-list" role="listbox"></ul>
+                </div>
+            </div>
+
+            <div class="map-engine-badge">
+                <span class="engine-dot"></span>
+                <span class="engine-text">SerpApi Google Maps Engine</span>
+            </div>
+
+            <div class="map-layer-selector">
+                <button type="button" class="map-layer-btn active" data-layer="dark" title="Modo Oscuro">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <span>Dark</span>
+                </button>
+                <button type="button" class="map-layer-btn" data-layer="streets" title="Mapa Callejero">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                    <span>Streets</span>
+                </button>
+                <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>Satelital</span>
+                </button>
+            </div>
+
+            <!-- Toolbar de Puntos de Interés (Paradas de Servicio y Comida) -->
+            <div class="map-poi-selector">
+                <button type="button" id="btn-poi-combustible" class="map-poi-btn" data-poi="gasolina" title="Mostrar Estaciones de Servicio en el mapa">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/><path d="M14 22V14a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v8"/><line x1="18" y1="12" x2="18" y2="7"/></svg>
+                    <span>Estaciones de Servicio</span>
+                </button>
+                <button type="button" id="btn-poi-comida" class="map-poi-btn" data-poi="comida" title="Mostrar Puestos de Comida y Paradores de Descanso">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                    <span>Comidas y Descansos</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Stats Panel at Bottom Left -->
+        <div class="map-overlay-stats">
+            <div class="map-stat-item">
+                <span class="map-stat-label">Rutas en Mapa</span>
+                <span id="map-stat-rutas" class="map-stat-val">0</span>
+            </div>
+            <div class="map-stat-divider"></div>
+            <div class="map-stat-item">
+                <span class="map-stat-label">En Tránsito</span>
+                <span id="map-stat-transito" class="map-stat-val blue">0</span>
+            </div>
+            <div class="map-stat-divider"></div>
+            <div class="map-stat-item">
+                <span class="map-stat-label">Distancia Total</span>
+                <span id="map-stat-distancia" class="map-stat-val green">0 km</span>
+            </div>
+        </div>
+
         <div id="mapa" class="map-full" aria-label="Mapa de operaciones"></div>
     </section>
 
@@ -655,6 +726,39 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- MODAL: SERPAPI GOOGLE MAPS CONFIG -->
+<div id="modal-serpapi" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="serpapi-modal-title">
+    <div class="modal-panel modal-panel--sm">
+        <div class="modal-header">
+            <div class="modal-title-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:#38bdf8">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                    <circle cx="12" cy="9" r="2.5"/>
+                </svg>
+                <h2 id="serpapi-modal-title" class="modal-title">SerpApi Google Maps Engine</h2>
+            </div>
+            <button id="btn-cerrar-modal-serpapi" class="modal-close" aria-label="Cerrar">&times;</button>
+        </div>
+        <div class="modal-body" style="margin-top:1rem;">
+            <p style="font-size:0.875rem; color:var(--text-muted,#94a3b8); margin-bottom:1rem; line-height:1.5;">
+                Conecta el motor de búsqueda <strong>Google Maps de SerpApi</strong> (<code>https://serpapi.com/search?engine=google_maps</code>) para geocodificar direcciones y lugares en Argentina con la API oficial de Google Maps.
+            </p>
+            <div class="field-block">
+                <label class="field-label" for="input-serpapi-key">SerpApi API Key</label>
+                <input type="text" id="input-serpapi-key" class="field-input" placeholder="Ingresa tu API Key de SerpApi..." autocomplete="off">
+                <small style="display:block; margin-top:6px; font-size:0.75rem; color:var(--text-muted,#64748b);">
+                    Si la clave se deja en blanco o falla por red/cuota, el sistema continuará funcionando mediante el fallback automático.
+                </small>
+            </div>
+            <div id="serpapi-status-badge" style="margin-top:12px; font-size:0.8rem; padding:8px 12px; border-radius:6px; display:none;"></div>
+        </div>
+        <div class="modal-actions" style="margin-top:1.25rem;">
+            <button type="button" id="btn-borrar-serpapi-key" class="btn-ghost" style="color:#ef4444;">Borrar Clave</button>
+            <button type="button" id="btn-guardar-serpapi-key" class="btn-primary">Guardar Clave</button>
+        </div>
     </div>
 </div>
 

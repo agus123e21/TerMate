@@ -829,10 +829,10 @@
                         dashArray: e.estado === 'Pendiente' ? '12, 8' : null
                     }).addTo(instanciaMapa);
                     const rutaPopup = `<div class="popup-titulo">Ruta #${String(e.id).padStart(4,'0')}</div>`
-                        + `<div class="popup-linea"><strong>${e.origen}</strong> → <strong>${e.destino}</strong></div>`
+                        + `<div class="popup-linea"><strong>${e.origen}</strong> a <strong>${e.destino}</strong></div>`
                         + (e.producto ? `<div class="popup-linea">Carga: ${e.producto}</div>` : '')
                         + (e.distancia ? `<div class="popup-linea">Distancia: ${formatoDistancia(e.distancia)}</div>` : '')
-                        + (e.calles?.length ? `<div class="popup-linea" style="margin-top:6px;font-size:0.8rem;opacity:0.85"><strong>Ruta por:</strong><br>${e.calles.join(' → ')}</div>` : '');
+                        + (e.calles?.length ? `<div class="popup-linea" style="margin-top:6px;font-size:0.8rem;opacity:0.85"><strong>Ruta por:</strong><br>${e.calles.join(' - ')}</div>` : '');
                     poly.bindPopup(rutaPopup);
                     refPolylines[e.id] = poly;
                 }

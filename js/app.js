@@ -355,8 +355,9 @@
             L.latLng(-55.1, -73.6),
             L.latLng(-21.8, -53.6)
         );
+        const isMobile = window.innerWidth <= 768;
         const mapOpts = {
-            zoomControl: true,
+            zoomControl: !isMobile,
             maxBounds: argentinaBounds,
             maxBoundsViscosity: 0.9,
             minZoom: 4,
@@ -366,7 +367,7 @@
         // 1. Mapa Full (Tab Principal)
         if (!mapaFull && document.getElementById('mapa')) {
             try {
-                mapaFull = L.map('mapa', mapOpts).setView([-38.4, -63.6], 5);
+                mapaFull = L.map('mapa', { ...mapOpts, scrollWheelZoom: true }).setView([-38.4, -63.6], 5);
                 cambiarCapaMapa(mapaFull, 'dark');
             } catch (err) {
                 console.error(err);
@@ -376,7 +377,12 @@
         // 2. Mapa Inline (Tab Nueva Ruta)
         if (!mapaInline && document.getElementById('mapa-inline')) {
             try {
-                mapaInline = L.map('mapa-inline', mapOpts).setView([-38.4, -63.6], 5);
+                mapaInline = L.map('mapa-inline', { 
+                    ...mapOpts, 
+                    scrollWheelZoom: false,
+                    dragging: !isMobile,
+                    tap: true
+                }).setView([-38.4, -63.6], 5);
                 L.tileLayer(TILE_PROVIDERS.dark, { attribution: 'CARTO', maxZoom: 19 }).addTo(mapaInline);
             } catch (err) {
                 console.error(err);
@@ -792,10 +798,12 @@
         });
 
         if (tabId === 'mapa' && mapaFull) {
-            setTimeout(() => mapaFull.invalidateSize(), 60);
+            setTimeout(() => mapaFull.invalidateSize(), 50);
+            setTimeout(() => mapaFull.invalidateSize(), 250);
         }
         if (tabId === 'nueva-ruta' && mapaInline) {
-            setTimeout(() => mapaInline.invalidateSize(), 60);
+            setTimeout(() => mapaInline.invalidateSize(), 50);
+            setTimeout(() => mapaInline.invalidateSize(), 250);
         }
     }
 
@@ -1759,6 +1767,11 @@
         renderListaCamiones();
         renderListaCamioneros();
         render();
+
+        window.addEventListener('resize', () => {
+            if (mapaFull) mapaFull.invalidateSize();
+            if (mapaInline) mapaInline.invalidateSize();
+        });
     }
 
     if (document.readyState === 'loading') {

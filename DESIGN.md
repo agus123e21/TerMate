@@ -21,7 +21,7 @@ graph TD
     App --> TabMapa[Tab 3: Mapa de Operaciones]:::main
     App --> TabFlota[Tab 4: Camiones y Choferes]:::main
 
-    TabRuta --> Autocomplete[Autocompletado de Direcciones SerpApi / GeoRef]:::sub
+    TabRuta --> Autocomplete[Autocompletado de Direcciones Nominatim / GeoRef]:::sub
     Autocomplete --> RoutingEngine[Motor de Calculo OSRM / ORS]:::sub
     RoutingEngine --> InlineMap[Visualizador de Ruta con Marcadores Arrastrables]:::sub
     InlineMap --> ModalViaje[Modal: Asignar Cliente y Remito]:::action
@@ -52,7 +52,7 @@ sequenceDiagram
     autonumber
     actor Operador as Operador / Chofer
     participant UI as Interfaz TerMate
-    participant GeoAPI as SerpApi / Nominatim Engine
+    participant GeoAPI as Nominatim / GeoRef Engine
     participant RouteEngine as OSRM / ORS Routing
     participant Storage as Base de Datos Local
 
@@ -79,25 +79,25 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    classDef base fill:#080c14,stroke:#334155,stroke-width:2px,color:#f8fafc;
-    classDef surface fill:#0f1524,stroke:#334155,stroke-width:2px,color:#f8fafc;
-    classDef structural fill:#1e293b,stroke:#475569,stroke-width:2px,color:#cbd5e1;
+    classDef base fill:#060911,stroke:#334155,stroke-width:2px,color:#f8fafc;
+    classDef surface fill:#0e1526,stroke:#334155,stroke-width:2px,color:#f8fafc;
+    classDef structural fill:#131d33,stroke:#475569,stroke-width:2px,color:#cbd5e1;
     classDef accentPrimary fill:#2563eb,stroke:#60a5fa,stroke-width:2px,color:#ffffff;
     classDef accentSuccess fill:#10b981,stroke:#34d399,stroke-width:2px,color:#ffffff;
     classDef accentWarning fill:#f59e0b,stroke:#fbbf24,stroke-width:2px,color:#ffffff;
     classDef accentDanger fill:#ef4444,stroke:#f87171,stroke-width:2px,color:#ffffff;
 
     subgraph Base_60pct [Superficie Base 60%]
-        BG[Fondo Principal: #080c14]:::base
-        Surface[Superficie Paneles: #0f1524]:::surface
-        Card[Tarjetas y Modales: #151e33]:::structural
+        BG[Fondo Principal: #060911]:::base
+        Surface[Superficie Paneles: #0e1526]:::surface
+        Card[Tarjetas y Modales: #131d33]:::structural
     end
 
     subgraph Estructural_30pct [Estructura y Tipografia 30%]
         TextTitle[Titulos: #f8fafc]:::structural
         TextBody[Cuerpo: #cbd5e1]:::structural
-        TextMuted[Secundario: #64748b]:::structural
-        Border[Bordes y Guias: #222f4d]:::structural
+        TextMuted[Secundario: #8493a8]:::structural
+        Border[Bordes y Guias: rgba 255,255,255,0.08]:::structural
     end
 
     subgraph Acentos_10pct [Acentos Funcionales 10%]
@@ -120,21 +120,21 @@ graph TD
 
     Req[Peticion de Direccion o POI] --> CheckNet{Dispositivo Online?}
     
-    CheckNet -- Si --> SerpApi[Nivel 1: SerpApi Google Maps Engine]:::online
-    SerpApi -- Falla / Sin Cupo --> GeoRef[Nivel 2: GeoRef AR Datos Publicos]:::online
-    GeoRef -- Falla --> Nominatim[Nivel 3: Nominatim OpenStreetMap]:::online
+    CheckNet -- Si --> GeoRef[Nivel 1: GeoRef AR Datos Publicos]:::online
+    GeoRef -- Falla --> Nominatim[Nivel 2: Nominatim OpenStreetMap]:::online
     
-    CheckNet -- No --> CacheGeo[Nivel 4: Cache Local de Direcciones]:::local
+    CheckNet -- No --> CacheGeo[Nivel 3: Cache Local de Direcciones]:::local
     Nominatim -- Falla --> CacheGeo
-    CacheGeo -- No Encontrado --> FallbackDataset[Nivel 5: Dataset Embebido Localidades Argentina]:::fallback
+    CacheGeo -- No Encontrado --> FallbackDataset[Nivel 4: Dataset Embebido Localidades Argentina]:::fallback
     
     FallbackDataset --> HaversineCalc[Calculo Lineal Haversine + Modo Edicion Manual]:::fallback
 ```
 
 ---
 
-## 6. Estándares de Ergonomia y Accesibilidad
-- **Thumb Zone**: En pantallas moviles, los botones primarios, la barra de navegacion y los disparadores de remito se ubican en el tercio inferior de la pantalla.
-- **8-Point Grid**: Todos los espaciados, paddings y margenes respetan la escala 4px, 8px, 12px, 16px, 20px, 24px, 32px y 48px.
-- **Tipografia**: Familia 'Inter', jerarquias claras de tamano y peso, con tabulacion numerica monospace para distancias, pesos y consumos.
-- **Rendimiento de Animacion**: Todas las transiciones ejecutan transform y opacity para aceleracion por hardware a 60 cuadros por segundo.
+## 6. Jerarquia de Aislamiento Visual (Z-Index)
+- `Header y Sidebar`: `z-index: 5000` (Fijos y visibles siempre por encima del contenido).
+- `Bottom Navigation Bar`: `z-index: 5000` (Ergonomia tactil fija en la base de la pantalla sin superposiciones).
+- `Modales y Dialogos`: `z-index: 9000` (Aislamiento completo sobre la capa de trabajo).
+- `Notificaciones Toast`: `z-index: 9999` (Feedback de sistema en primer plano).
+- `Capas de Mapa Leaflet`: `z-index: 5` a `25` (Contenidas estrictamente dentro de su contenedor).

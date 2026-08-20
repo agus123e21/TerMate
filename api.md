@@ -1,122 +1,85 @@
-# 🔌 Documentación de APIs Integradas — TerMate
+# Documentacion de APIs Integradas — TerMate
 
-Este documento detalla el funcionamiento técnico, endpoints, parámetros y formatos de respuesta de las APIs externas integradas en el sistema de gestión de fletes **TerMate**.
+Este documento detalla el funcionamiento tecnico, endpoints, parametros y formatos de respuesta de las APIs externas integradas en el sistema de gestion de fletes TerMate.
 
 ---
 
-## 🗺️ 1. Geocodificación y Autocompletado
+## 1. Arquitectura de Geocodificacion y Rutas
 
-### 1.1 SerpApi — Google Maps Search Engine
-Motor principal de geocodificación y autocompletado en tiempo real. Utiliza la sintaxis del motor de Google Maps vía SerpApi (`engine=google_maps`) para resolver ubicaciones, direcciones completas y coordenadas de latitud/longitud (`gps_coordinates`).
+```mermaid
+graph TD
+    classDef main fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef api fill:#1e293b,stroke:#818cf8,stroke-width:1px,color:#cbd5e1;
 
-*   **Método:** `GET`
-*   **Endpoint:** `https://serpapi.com/search?engine=google_maps` (o `https://serpapi.com/search.json?engine=google_maps`)
-*   **Link Oficial:** [https://serpapi.com/search?engine=google_maps](https://serpapi.com/search?engine=google_maps)
+    Input[Consulta de Direccion o Destino]:::main
+    
+    Input --> SerpApi[1. SerpApi Google Maps Engine: https://serpapi.com/search]:::api
+    SerpApi --> GeoRef[2. GeoRef AR: apis.datos.gob.ar]:::api
+    GeoRef --> Nominatim[3. Nominatim OSM: nominatim.openstreetmap.org]:::api
+    Nominatim --> LocalCache[4. Cache Local Persistente]:::api
+    LocalCache --> Dataset[5. Dataset Embebido Federal]:::api
 
-#### Parámetros de Consulta:
-| Parámetro | Tipo | Valor / Ejemplo | Descripción |
+    InputRuta[Trazado de Ruta]:::main
+    InputRuta --> ORS[1. OpenRouteService HGV Driving: api.openrouteservice.org]:::api
+    ORS --> OSRM[2. OSRM Driving: router.project-osrm.org]:::api
+    OSRM --> Haversine[3. Calculo Lineal Haversine Offline]:::api
+```
+
+---
+
+## 2. Geocodificacion y Autocompletado
+
+### 2.1 SerpApi — Google Maps Search Engine
+Motor principal de geocodificacion y autocompletado en tiempo real. Utiliza la sintaxis del motor de Google Maps via SerpApi (`engine=google_maps`) para resolver ubicaciones, direcciones completas y coordenadas de latitud/longitud (`gps_coordinates`).
+
+- **Metodo:** `GET`
+- **Endpoint:** `https://serpapi.com/search?engine=google_maps` (o `https://serpapi.com/search.json?engine=google_maps`)
+- **Link Oficial:** [https://serpapi.com/search?engine=google_maps](https://serpapi.com/search?engine=google_maps)
+
+#### Parametros de Consulta:
+| Parametro | Tipo | Valor / Ejemplo | Descripcion |
 | :--- | :--- | :--- | :--- |
-| `engine` | String | `google_maps` | Especifica el motor de búsqueda de Google Maps. |
-| `q` | String | `Av Corrientes 1234, Buenos Aires` | Dirección, localidad o punto de interés buscado. |
-| `gl` | String | `ar` | Código de país para Argentina. |
-| `hl` | String | `es` | Idioma de respuesta en español. |
-| `api_key` | String | `[TU_API_KEY]` | Clave personal de SerpApi (opcional si la API está configurada libre o via proxy). |
+| `engine` | String | `google_maps` | Especifica el motor de busqueda de Google Maps. |
+| `q` | String | `Av Corrientes 1234, Buenos Aires` | Direccion, localidad o punto de interes buscado. |
+| `gl` | String | `ar` | Codigo de pais para Argentina. |
+| `hl` | String | `es` | Idioma de respuesta en espanol. |
+| `api_key` | String | `[TU_API_KEY]` | Clave personal de SerpApi (guardada en localStorage). |
 
-#### Ejemplo de Petición:
+#### Ejemplo de Peticion:
 ```http
 GET https://serpapi.com/search?engine=google_maps&q=Av+Corrientes+1234+Buenos+Aires&gl=ar&hl=es&api_key=YOUR_SERPAPI_KEY
 ```
 
-#### Ejemplo de Respuesta (JSON):
-```json
-{
-  "search_metadata": {
-    "id": "64c58f01b1e9c2001e4a1a2b",
-    "status": "Success",
-    "engine": "google_maps"
-  },
-  "local_results": [
-    {
-      "position": 1,
-      "title": "Av. Corrientes 1234",
-      "place_id": "ChIJN1t_tDe1vJUR...",
-      "data_id": "0x95bccac6b47f5b35:0x...",
-      "gps_coordinates": {
-        "latitude": -34.603784,
-        "longitude": -58.381561
-      },
-      "address": "Av. Corrientes 1234, C1043 AAB, Buenos Aires, Argentina",
-      "rating": 4.8,
-      "reviews": 142
-    }
-  ]
-}
-```
+---
+
+### 2.2 Nominatim (OpenStreetMap) — Fallback Secundario
+Servicio de respaldo para resolucion de direcciones en caso de indisponibilidad de red o de clave de API.
+
+- **Metodo:** `GET`
+- **Endpoint:** `https://nominatim.openstreetmap.org/search`
+- **Headers requeridos:**
+  - `User-Agent: TerMate/2.1`
 
 ---
 
-### 1.2 Nominatim (OpenStreetMap) — Fallback Secundario
-Servicio de respaldo para resolución de direcciones en caso de indisponibilidad de red o de clave de API.
+### 2.3 API GeoRef (Gobierno de la Nacion Argentina)
+Utilizada para la normalizacion oficial de direcciones publicas de catastro y nombres de calles bajo estandares gubernamentales del IGN.
 
-*   **Método:** `GET`
-*   **Endpoint:** `https://nominatim.openstreetmap.org/search`
-*   **Headers requeridos:**
-    *   `User-Agent: TerMate/2.1`
+- **Metodo:** `GET`
+- **Endpoint:** `https://apis.datos.gob.ar/georef/api/v2.1/direcciones`
 
 ---
 
-### 1.2 API Georef (Gobierno de la Nación Argentina)
-Utilizada para la normalización oficial de direcciones públicas de catastro y nombres de calles bajo estándares gubernamentales del IGN.
+## 3. Calculo de Rutas y Enrutamiento Pesado
 
-*   **Método:** `GET`
-*   **Endpoint:** `https://apis.datos.gob.ar/georef/api/v2.1/direcciones`
+### 3.1 OpenRouteService (ORS) — Perfil HGV (Heavy Goods Vehicle)
+Calcula la trayectoria optima para vehiculos de carga, evitando obstaculos fisicos o legales en base a las dimensiones ingresadas por el operador en el perfil de su camion.
 
-#### Parámetros de Consulta:
-| Parámetro | Tipo | Valor / Ejemplo | Descripción |
-| :--- | :--- | :--- | :--- |
-| `direccion` | String | `Paseo Colon 850` | Calle y altura a normalizar. |
-| `max` | Integer | `1` | Cantidad máxima de coincidencias. |
-| `provincia` | String | `Buenos Aires` | (Opcional) Filtro por provincia. |
-
-#### Ejemplo de Petición:
-```http
-GET https://apis.datos.gob.ar/georef/api/v2.1/direcciones?direccion=Av+Corrientes+1234&max=1
-```
-
-#### Ejemplo de Respuesta:
-```json
-{
-  "direcciones": [
-    {
-      "calle": {
-        "id": "0200701002360",
-        "nombre": "CORRIENTES AV."
-      },
-      "altura": {
-        "valor": 1234
-      },
-      "nomenclatura": "CORRIENTES AV. 1234, Ciudad Autónoma de Buenos Aires",
-      "ubicacion": {
-        "lat": -34.603784,
-        "lon": -58.381561
-      }
-    }
-  ]
-}
-```
-
----
-
-## 🚛 2. Cálculo de Rutas y Enrutamiento Pesado
-
-### 2.1 OpenRouteService (ORS) — Perfil HGV (Heavy Goods Vehicle)
-Es la API principal de enrutamiento. Calcula la trayectoria óptima para vehículos de carga, evitando obstáculos físicos o legales en base a las dimensiones ingresadas por el gerente en el perfil de su camión.
-
-*   **Método:** `POST`
-*   **Endpoint:** `https://api.openrouteservice.org/v2/directions/driving-hgv`
-*   **Headers requeridos:**
-    *   `Content-Type: application/json`
-    *   `Authorization: [TU_API_KEY]` (Opcional para entornos locales de pruebas, requerido en producción)
+- **Metodo:** `POST`
+- **Endpoint:** `https://api.openrouteservice.org/v2/directions/driving-hgv`
+- **Headers requeridos:**
+  - `Content-Type: application/json`
+  - `Authorization: [TU_API_KEY]` (Opcional en modo publico / demo)
 
 #### Estructura del Body (JSON):
 ```json
@@ -138,115 +101,38 @@ Es la API principal de enrutamiento. Calcula la trayectoria óptima para vehícu
   }
 }
 ```
-*Nota: Las coordenadas en ORS se envían en formato `[Longitud, Latitud]`.*
-
-#### Parámetros del Body:
-| Campo | Tipo | Ejemplo | Descripción |
-| :--- | :--- | :--- | :--- |
-| `coordinates` | Array | `[[lon, lat], [lon, lat]]` | Lista de puntos de paso (origen y destino). |
-| `height` | Float | `4.0` | Altura máxima del camión en metros. |
-| `width` | Float | `2.5` | Ancho del camión en metros. |
-| `length` | Float | `18.0` | Longitud total del camión en metros. |
-| `weight` | Float | `20.0` | Peso total del camión cargado en toneladas. |
-| `axleload` | Float | `6.7` | Carga máxima por eje en toneladas. |
-
-#### Ejemplo de Respuesta:
-```json
-{
-  "routes": [
-    {
-      "summary": {
-        "distance": 695240.5,
-        "duration": 29840.0
-      },
-      "geometry": "i~_bFzzg`Jj@hC`@vD...",
-      "warnings": [
-        {
-          "code": 3,
-          "message": "Ruta calculada contiene restricciones de peso en Puente Vial Nacional."
-        }
-      ]
-    }
-  ]
-}
-```
-*   `summary.distance`: Distancia total en metros (se divide por `1000` en JS para mostrar en km).
-*   `summary.duration`: Duración del viaje en segundos (se divide por `3600` para mostrar en horas).
-*   `geometry`: Cadena codificada mediante el algoritmo **Encoded Polyline** (precisión de 5 decimales) que contiene la lista secuencial de coordenadas de la ruta.
 
 ---
 
-### 2.2 OSRM (Open Source Routing Machine) — Fallback Estándar
-API secundaria de enrutamiento en tiempo real. Utilizada cuando la API de ORS falla o no tiene cobertura de red de camiones disponible en ese segmento específico. Calcula rutas para automóviles y carece de filtrado por dimensiones.
+### 3.2 OSRM (Open Source Routing Machine) — Fallback Estandar
+API secundaria de enrutamiento en tiempo real. Calcula rutas sobre la red vial con pasos detallados y coordenadas completas.
 
-*   **Método:** `GET`
-*   **Endpoint:** `https://router.project-osrm.org/route/v1/driving/{lon_origen},{lat_origen};{lon_destino},{lat_destino}`
-
-#### Parámetros de Consulta:
-| Parámetro | Tipo | Valor / Ejemplo | Descripción |
-| :--- | :--- | :--- | :--- |
-| `overview` | String | `full` | Retorna la geometría completa de la ruta. |
-| `geometries` | String | `geojson` | Formato de respuesta de la línea de ruta. |
-
-#### Ejemplo de Petición:
-```http
-GET https://router.project-osrm.org/route/v1/driving/-58.3815,-34.6037;-64.1885,-31.4168?overview=full&geometries=geojson
-```
-
-#### Ejemplo de Respuesta:
-```json
-{
-  "code": "Ok",
-  "routes": [
-    {
-      "distance": 698240.2,
-      "duration": 26450.0,
-      "geometry": {
-        "coordinates": [
-          [-58.3815, -34.6037],
-          [-58.3892, -34.6081],
-          [-64.1885, -31.4168]
-        ],
-        "type": "LineString"
-      }
-    }
-  ]
-}
-```
+- **Metodo:** `GET`
+- **Endpoint:** `https://router.project-osrm.org/route/v1/driving/{lon_origen},{lat_origen};{lon_destino},{lat_destino}?overview=full&geometries=geojson&steps=true`
 
 ---
 
-## 🛢️ 3. Cálculo de Consumo Real de Combustible
+## 4. Calculo de Consumo Real de Combustible
 
-El consumo promedio de un camión en ruta no es constante; varía drásticamente según la carga útil transportada. TerMate utiliza un modelo de **interpolación lineal** configurable por el gerente desde la sección de ajustes:
+El consumo promedio de un camion en ruta varia segun la carga util transportada. TerMate utiliza un modelo de interpolacion lineal:
 
-### Variables de Entrada:
-*   $C_{\text{vacío}}$: Consumo del camión sin carga en $\text{L}/100\text{ km}$ (ej: $25\text{ L}$).
-*   $C_{\text{lleno}}$: Consumo del camión a carga máxima en $\text{L}/100\text{ km}$ (ej: $38\text{ L}$).
-*   $P_{\text{máx}}$: Capacidad máxima de carga del camión en toneladas (ej: $20\text{ tn}$).
-*   $P_{\text{carga}}$: Peso actual de la carga asignada al viaje en toneladas.
-*   $D$: Distancia total calculada para la ruta en kilómetros.
+### Formula de Consumo por Viaje:
+$$C_{\text{estimado}} = \left( C_{\text{vacio}} + (C_{\text{lleno}} - C_{\text{vacio}}) \times \min\left(1, \frac{P_{\text{carga}}}{P_{\text{max}}}\right) \right) \times \frac{D}{100}$$
 
-### Ecuación de Consumo por Viaje:
-El consumo se ajusta proporcionalmente al porcentaje de capacidad de carga utilizada:
-
-$$C_{\text{estimado}} = \left( C_{\text{vacío}} + (C_{\text{lleno}} - C_{\text{vacío}}) \times \min\left(1, \frac{P_{\text{carga}}}{P_{\text{máx}}}\right) \right) \times \frac{D}{100}$$
-
-#### Ejemplo Práctico:
-Para un viaje de **$500\text{ km}$**, con un camión de capacidad máxima de **$20\text{ tn}$**, consumo vacío de **$25\text{ L}$**, consumo cargado de **$38\text{ L}$**, transportando una carga de **$10\text{ tn}$** (50% de su capacidad):
-
-1.  **Ratio de Carga:** $\frac{10}{20} = 0.5$ (50%)
-2.  **Consumo Ajustado:** $25 + (38 - 25) \times 0.5 = 31.5\text{ L}/100\text{ km}$
-3.  **Total Consumido:** $31.5 \times \frac{500}{100} = 157.5\text{ L}$ (mostrado como `~158 L`)
+- $C_{\text{vacio}}$: Consumo del camion sin carga en L/100 km (ej: 25 L).
+- $C_{\text{lleno}}$: Consumo del camion a carga maxima en L/100 km (ej: 38 L).
+- $P_{\text{max}}$: Capacidad maxima de carga del camion en toneladas (ej: 20 tn).
+- $P_{\text{carga}}$: Peso actual de la carga asignada al viaje en toneladas.
+- $D$: Distancia total calculada para la ruta en kilometros.
 
 ---
 
-## 📴 4. Fallback de Enrutamiento (Fuera de Línea)
+## 5. Fallback de Enrutamiento (Fuera de Linea)
 
-Cuando el dispositivo de celular se encuentra **sin señal de red (offline)** y se ingresa una dirección cacheada, el sistema activa el cálculo por **Fórmula de Haversine** (distancia del círculo máximo).
+Cuando el dispositivo se encuentra sin senal de red (offline), el sistema activa el calculo por Formula de Haversine (distancia del gran circulo):
 
 $$\text{d} = 2R \arcsin \left( \sqrt{\sin^2\left(\frac{\Delta \text{lat}}{2}\right) + \cos(\text{lat}_1)\cos(\text{lat}_2)\sin^2\left(\frac{\Delta \text{lon}}{2}\right)} \right)$$
 
-*   Donde $R = 6371\text{ km}$ (Radio medio de la Tierra).
-*   **Velocidad de simulación por defecto:** $70\text{ km/h}$ para vehículos de carga pesada.
-*   **Trayectoria:** Línea recta directa entre el punto de origen y destino.
+- $R = 6371\text{ km}$ (Radio medio de la Tierra).
+- Velocidad de simulacion por defecto: $70\text{ km/h}$.
+- Trayectoria: Linea recta directa entre el punto de origen y destino con modo de ajuste manual.

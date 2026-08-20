@@ -717,13 +717,14 @@
 
         pois.forEach(p => {
             const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(mapaFull);
+            const tipoLabel = categoria === 'gasolina' ? 'Estacion de Servicio' : 'Parador / Descanso';
             const popupHtml = `<div class="popup-titulo" style="color:${categoria === 'gasolina' ? '#34d399' : '#fbbf24'}">
-                ${categoria === 'gasolina' ? '⛽ Estación de Servicio' : '🍽️ Parador / Resto'}
+                ${tipoLabel}
             </div>
             <div class="popup-linea"><strong>${p.titulo}</strong></div>
             <div class="popup-linea">${p.direccion}</div>
-            ${p.rating ? `<div class="popup-linea" style="color:#fbbf24;font-weight:600">★ ${p.rating} (${p.reviews || 0} opiniones)</div>` : ''}
-            <div class="popup-linea" style="font-size:0.75rem;opacity:0.85;margin-top:4px">Obtenido de Google Maps vía SerpApi</div>`;
+            ${p.rating ? `<div class="popup-linea" style="color:#38bdf8;font-weight:600">Calificacion: ${p.rating} / 5 (${p.reviews || 0} resenas)</div>` : ''}
+            <div class="popup-linea" style="font-size:0.75rem;opacity:0.85;margin-top:4px">Obtenido de Google Maps via SerpApi</div>`;
             m.bindPopup(popupHtml);
             poiMarcadores[categoria].push(m);
         });
@@ -908,7 +909,10 @@
 
         if (lista.length === 0) {
             c.innerHTML = `<div class="empty-state">
-                <span class="empty-icon">📋</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:0.4;margin-bottom:8px">
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                </svg>
                 <p>No se encontraron registros de viajes.</p>
             </div>`;
             return;
@@ -1038,7 +1042,7 @@
 
                 lista.innerHTML = sugs.map(s => {
                     const badgeHtml = s.fuente ? `<span class="sug-badge ${s.fuente.includes('Google') ? 'sug-badge--google' : ''}">${s.fuente}</span>` : '';
-                    const ratingHtml = (s.rating && s.rating > 0) ? `<span class="sug-rating">★ ${s.rating}${s.reviews ? ` (${s.reviews})` : ''}</span>` : '';
+                    const ratingHtml = (s.rating && s.rating > 0) ? `<span class="sug-rating">Rating: ${s.rating}${s.reviews ? ` (${s.reviews})` : ''}</span>` : '';
                     return `<li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${s.completo}">
                         <div class="sug-main-row">
                             <span class="sug-principal">${s.principal}</span>
@@ -1166,7 +1170,7 @@
             const cls = scoreClass(score);
             const vtoClass = carnetVtoClass(cnr.carnetVto);
             const vtoLabel = cnr.carnetVto
-                ? (vtoClass === 'vto-exp' ? 'Carnet VENCIDO' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${cnr.carnetCat || '?'} ✓`)
+                ? (vtoClass === 'vto-exp' ? 'Carnet VENCIDO' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${cnr.carnetCat || '?'} (Vigente)`)
                 : (cnr.carnetCat ? `Cat. ${cnr.carnetCat}` : 'Sin carnet');
             const totalRegistros = (cnr.historial || []).length;
             const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
@@ -1335,9 +1339,9 @@
                             <div class="historial-entry-header">
                                 <span class="historial-fecha">${r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR') : '—'}</span>
                                 <div class="historial-badges">
-                                    <span class="hist-badge ruta-${r.ruta}">${r.ruta === 'si' ? 'Ruta OK' : r.ruta === 'no' ? 'No cumplió' : 'Parcial'}</span>
+                                    <span class="hist-badge ruta-${r.ruta}">${r.ruta === 'si' ? 'Ruta OK' : r.ruta === 'no' ? 'No cumplio' : 'Parcial'}</span>
                                     <span class="hist-badge punt-${r.puntualidad === 'puntual' ? 'ok' : r.puntualidad === 'leve' ? 'leve' : 'grave'}">${r.puntualidad === 'puntual' ? 'Puntual' : r.puntualidad === 'leve' ? 'Tardanza leve' : 'Tardanza grave'}</span>
-                                    <span class="hist-badge bono-${r.bono}">${r.bono === 'si' ? 'Bono ✓' : 'Sin bono'}</span>
+                                    <span class="hist-badge bono-${r.bono}">${r.bono === 'si' ? 'Bono Otorgado' : 'Sin bono'}</span>
                                 </div>
                                 <button class="historial-del" data-hist-idx="${realIdx}">Eliminar</button>
                             </div>

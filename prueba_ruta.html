@@ -428,10 +428,11 @@
         <div class="sidebar-panel">
             <div>
                 <h3 class="panel-section-title">
-                    <span style="color: var(--primary);">📍</span> Rutas Nacionales
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--primary)"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                    <span>Rutas Nacionales</span>
                 </h3>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Búsqueda geolocalizada en el territorio argentino.
+                    Busqueda geolocalizada en el territorio argentino.
                 </p>
 
                 <div class="form-group">
@@ -455,7 +456,7 @@
             <!-- RESULTADOS DEL REMITO -->
             <div id="results-container" class="results-card">
                 <div class="results-title">
-                    <span>Métricas del Remito</span>
+                    <span>Metricas del Remito</span>
                     <span id="label-modo" style="font-size: 0.75rem; color: var(--accent-green); font-weight: 700;">Autocompletado</span>
                 </div>
 
@@ -471,12 +472,12 @@
                 </div>
 
                 <div class="form-group" style="margin-top: 1.25rem;">
-                    <label for="input-manual-distancia" id="lbl-manual-distancia" style="display:none; font-size: 0.75rem;">Kilómetros (Modo Manual)</label>
+                    <label for="input-manual-distancia" id="lbl-manual-distancia" style="display:none; font-size: 0.75rem;">Kilometros (Modo Manual)</label>
                     <input type="number" id="input-manual-distancia" class="input-control" style="display:none;" min="0" placeholder="Ingresar km manualmente">
                 </div>
 
                 <div class="contingency-box" id="contingency-info">
-                    ⚠️ <strong>Modo Fallback:</strong> No pudimos calcular la ruta exacta automáticamente. Modifica los kilómetros de manera manual arriba.
+                    <strong>[Aviso Modo Fallback]:</strong> No pudimos calcular la ruta exacta automaticamente. Modifica los kilometros de manera manual arriba.
                 </div>
 
                 <div style="margin-top: 1.25rem; display: flex; gap: 0.6rem;">
@@ -873,7 +874,7 @@
                 pill.innerHTML = `
                     <div>
                         <strong style="color:var(--text-main); font-size:0.75rem;">${rem.id}</strong>
-                        <div class="trip-route-desc" title="${rem.origen} -> ${rem.destino}">${rem.origen.split(',')[0]} ➜ ${rem.destino.split(',')[0]}</div>
+                        <div class="trip-route-desc" title="${rem.origen} -> ${rem.destino}">${rem.origen.split(',')[0]} -> ${rem.destino.split(',')[0]}</div>
                     </div>
                     <span class="trip-km">${rem.distancia} km</span>
                 `;

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#070b12">
-    <meta name="description" content="Gestion de rutas para camiones en Argentina. Funciona sin internet.">
-    <title>TerMate — Gestion de Rutas</title>
+    <meta name="theme-color" content="#080c14">
+    <meta name="description" content="Sistema Integral de Gestion de Rutas y Transporte de Cargas en Argentina.">
+    <title>TerMate — Gestion de Transporte y Rutas</title>
 
     <link rel="manifest" href="manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,17 +18,22 @@
 </head>
 <body>
 
-<!-- SIDEBAR -->
+<!-- SIDEBAR ESCRITORIO -->
 <aside id="sidebar">
     <div class="sidebar-brand">
-        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="1" y="11" width="15" height="10" rx="1"/>
-            <path d="M16 11l4 3v7h-4V11z"/>
-            <circle cx="5.5" cy="21" r="1.5"/>
-            <circle cx="18.5" cy="21" r="1.5"/>
-            <path d="M1 8h9M1 5h6"/>
-        </svg>
-        <span class="brand-name">TerMate</span>
+        <div class="brand-logo-wrap">
+            <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="11" width="15" height="10" rx="1.5"/>
+                <path d="M16 11l4 3v7h-4V11z"/>
+                <circle cx="5.5" cy="21" r="1.5"/>
+                <circle cx="18.5" cy="21" r="1.5"/>
+                <path d="M1 8h9M1 5h6"/>
+            </svg>
+        </div>
+        <div class="brand-info">
+            <span class="brand-name">TerMate</span>
+            <span class="brand-sub">Logistica Nacional</span>
+        </div>
     </div>
 
     <nav class="sidebar-nav" aria-label="Navegacion principal">
@@ -38,7 +43,7 @@
                 <line x1="12" y1="8" x2="12" y2="16"/>
                 <line x1="8" y1="12" x2="16" y2="12"/>
             </svg>
-            Nueva Ruta
+            <span>Nueva Ruta</span>
         </button>
         <button class="sidebar-btn" data-tab="mis-viajes" id="snav-mis-viajes">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -49,7 +54,7 @@
                 <line x1="3" y1="12" x2="3.01" y2="12"/>
                 <line x1="3" y1="18" x2="3.01" y2="18"/>
             </svg>
-            Mis Viajes
+            <span>Mis Viajes</span>
         </button>
         <button class="sidebar-btn" data-tab="mapa" id="snav-mapa">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -57,7 +62,7 @@
                 <line x1="9" y1="3" x2="9" y2="18"/>
                 <line x1="15" y1="6" x2="15" y2="21"/>
             </svg>
-            Mapa
+            <span>Mapa de Flota</span>
         </button>
         <button class="sidebar-btn" data-tab="camiones" id="snav-camiones">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -67,18 +72,11 @@
                 <circle cx="18.5" cy="21" r="1.5"/>
                 <path d="M1 8h9M1 5h6"/>
             </svg>
-            Mis Camiones
+            <span>Camiones y Choferes</span>
         </button>
     </nav>
 
     <div class="sidebar-footer">
-        <button id="btn-open-serpapi-modal" class="btn-serpapi-config" title="Configurar SerpApi Google Maps API Key">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-                <circle cx="12" cy="9" r="2.5"/>
-            </svg>
-            <span>Google Maps API</span>
-        </button>
         <div id="indicador-conexion-sidebar" class="conexion-pill online">
             <span class="conexion-dot"></span>
             <span class="conexion-texto">Online</span>
@@ -86,7 +84,7 @@
     </div>
 </aside>
 
-<!-- HEADER MOBILE -->
+<!-- HEADER MOVIL -->
 <header id="app-header">
     <div class="header-brand">
         <svg class="brand-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -105,10 +103,10 @@
     </div>
 </header>
 
-<!-- CONTENIDO PRINCIPAL -->
+<!-- CONTENEDOR PRINCIPAL -->
 <main id="app-main">
 
-    <!-- KPIs -->
+    <!-- BARRA DE KPIS OPERATIVOS -->
     <div id="kpis-bar" class="kpis-bar">
         <div class="kpi-card">
             <span class="kpi-label">Pendientes</span>
@@ -124,24 +122,30 @@
             <span class="kpi-label">Entregados</span>
             <span class="kpi-value green" id="kpi-num-entregado">0</span>
         </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-card">
+            <span class="kpi-label">Total Flota</span>
+            <span class="kpi-value purple" id="kpi-num-flota">0</span>
+        </div>
     </div>
 
-    <!-- TAB: NUEVA RUTA -->
+    <!-- TAB 1: NUEVA RUTA -->
     <section id="tab-nueva-ruta" class="tab-pane active">
         <div class="pane-cols">
             <div class="pane-col-form">
                 <div class="section-header">
-                    <h2 id="form-titulo" class="section-title">Nueva Ruta</h2>
+                    <h2 id="form-titulo" class="section-title">Nueva Ruta de Transporte</h2>
+                    <p class="section-subtitle">Ingresa el origen y destino para calcular distancias, tiempos y emision de remito.</p>
                 </div>
 
                 <form id="form-envio" novalidate class="route-form">
                     <div class="field-block">
-                        <label class="field-label" for="origen">Origen</label>
+                        <label class="field-label" for="origen">Punto de Origen (Carga)</label>
                         <div class="input-with-indicator">
-                            <span class="route-dot route-dot--start"></span>
+                            <span class="route-dot route-dot--start" title="Origen"></span>
                             <div class="autocomplete-wrap">
                                 <input type="text" id="origen" class="field-input"
-                                    placeholder="Direccion completa de carga"
+                                    placeholder="Ciudad o direccion completa de carga..."
                                     required autocomplete="off" inputmode="text">
                                 <ul id="sugerencias-origen" class="suggestions-list" role="listbox"></ul>
                             </div>
@@ -153,12 +157,12 @@
                     </div>
 
                     <div class="field-block">
-                        <label class="field-label" for="destino">Destino</label>
+                        <label class="field-label" for="destino">Punto de Destino (Descarga)</label>
                         <div class="input-with-indicator">
-                            <span class="route-dot route-dot--end"></span>
+                            <span class="route-dot route-dot--end" title="Destino"></span>
                             <div class="autocomplete-wrap">
                                 <input type="text" id="destino" class="field-input"
-                                    placeholder="Direccion completa de descarga"
+                                    placeholder="Ciudad o direccion completa de descarga..."
                                     required autocomplete="off" inputmode="text">
                                 <ul id="sugerencias-destino" class="suggestions-list" role="listbox"></ul>
                             </div>
@@ -168,103 +172,121 @@
                     <div class="form-divider"></div>
 
                     <div class="field-block">
-                        <label class="field-label" for="producto">Descripcion de la carga</label>
+                        <label class="field-label" for="producto">Descripcion de la Carga</label>
                         <input type="text" id="producto" class="field-input"
-                            placeholder="Ej: Granos, materiales de construccion"
+                            placeholder="Ej: Granos a granel, pallets de mercaderia, bobinas..."
                             required autocomplete="off">
                     </div>
 
                     <div class="fields-row">
                         <div class="field-block">
-                            <label class="field-label" for="peso-carga">Peso carga (tn)</label>
+                            <label class="field-label" for="peso-carga">Peso Carga (tn)</label>
                             <input type="number" id="peso-carga" class="field-input"
                                 placeholder="0.0" min="0" step="0.1" inputmode="decimal">
                         </div>
                         <div class="field-block">
-                            <label class="field-label" for="estado">Estado</label>
+                            <label class="field-label" for="estado">Estado Inicial</label>
                             <select id="estado" class="field-input">
                                 <option value="Pendiente">Pendiente</option>
-                                <option value="En Transito">En Transito</option>
+                                <option value="En Transito">En Ruta</option>
                                 <option value="Entregado">Entregado</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="field-block">
-                        <label class="field-label" for="select-camion">Camion asignado</label>
+                        <label class="field-label" for="select-camion">Camion Asignado</label>
                         <select id="select-camion" class="field-input">
-                            <option value="">-- Seleccionar camion --</option>
+                            <option value="">-- Seleccionar camion de flota --</option>
                         </select>
                     </div>
 
-                    <button type="submit" id="btn-submit-envio" class="btn-primary">
-                        <span id="btn-submit-texto">Calcular Mejor Ruta</span>
-                        <span id="btn-submit-loader" class="spinner hidden" aria-hidden="true"></span>
-                    </button>
+                    <div class="form-actions-row">
+                        <button type="submit" id="btn-submit-envio" class="btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                            <span id="btn-submit-texto">Calcular Ruta y Emitir</span>
+                            <span id="btn-submit-loader" class="spinner hidden" aria-hidden="true"></span>
+                        </button>
 
-                    <button type="button" id="btn-cancelar-edicion" class="btn-ghost hidden">
-                        Cancelar edicion
-                    </button>
+                        <button type="button" id="btn-cancelar-edicion" class="btn-ghost hidden">
+                            Cancelar Edicion
+                        </button>
+                    </div>
                 </form>
 
+                <!-- Panel de Resultado de Ruta -->
                 <div id="resultado-ruta" class="result-card hidden">
                     <div class="result-header">
-                        <span class="result-label">Ruta calculada</span>
-                        <button id="btn-ver-mapa-resultado" class="btn-link">Ver en mapa</button>
+                        <div>
+                            <span class="result-badge">Ruta Optimizada</span>
+                            <span class="result-subtitle">Calculado sobre la red vial nacional</span>
+                        </div>
+                        <button id="btn-ver-mapa-resultado" class="btn-link">Ver en Mapa Full</button>
                     </div>
                     <div class="result-metrics">
                         <div class="result-metric">
                             <span class="result-metric-val" id="res-distancia">--</span>
-                            <span class="result-metric-lbl">Distancia</span>
+                            <span class="result-metric-lbl">Distancia Total</span>
                         </div>
                         <div class="result-metric-sep"></div>
                         <div class="result-metric">
                             <span class="result-metric-val" id="res-tiempo">--</span>
-                            <span class="result-metric-lbl">Tiempo est.</span>
+                            <span class="result-metric-lbl">Tiempo Est.</span>
                         </div>
                         <div class="result-metric-sep"></div>
                         <div class="result-metric">
                             <span class="result-metric-val" id="res-fuel">--</span>
-                            <span class="result-metric-lbl">Combustible</span>
+                            <span class="result-metric-lbl">Gasoil Est.</span>
                         </div>
                     </div>
                     <div id="res-advertencias" class="result-warning hidden"></div>
                 </div>
             </div>
 
+            <!-- Mapa de Previsualización -->
             <div class="pane-col-map" id="mapa-inline-wrap">
+                <div class="map-inline-header">
+                    <div class="map-inline-tag">
+                        <span class="pulse-dot"></span>
+                        <span>Vista Previa de Ruta</span>
+                    </div>
+                    <span class="map-inline-tip">Doble clic sobre el marcador para reubicarlo</span>
+                </div>
                 <div id="mapa-inline" class="map-inline" aria-label="Vista previa de ruta"></div>
             </div>
         </div>
     </section>
 
-    <!-- TAB: MIS VIAJES -->
+    <!-- TAB 2: MIS VIAJES -->
     <section id="tab-mis-viajes" class="tab-pane">
         <div class="trips-header">
-            <h2 class="section-title">Mis Viajes</h2>
+            <div>
+                <h2 class="section-title">Mis Viajes y Remitos</h2>
+                <p class="section-subtitle">Historial de despachos, control de estados y emision de comprobantes.</p>
+            </div>
             <div class="search-box">
                 <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <input type="search" id="filtro-buscar" class="search-input"
-                    placeholder="Buscar destino, carga, cliente..." inputmode="search">
+                    placeholder="Buscar por destino, carga, cliente o remito..." inputmode="search">
             </div>
         </div>
 
         <div class="filter-bar" role="group" aria-label="Filtrar por estado">
             <button class="filter-btn active" data-estado="todos">Todos</button>
-            <button class="filter-btn" data-estado="Pendiente">Pendiente</button>
+            <button class="filter-btn" data-estado="Pendiente">Pendientes</button>
             <button class="filter-btn" data-estado="En Transito">En Ruta</button>
-            <button class="filter-btn" data-estado="Entregado">Entregado</button>
+            <button class="filter-btn" data-estado="Entregado">Entregados</button>
         </div>
 
         <div id="lista-viajes" class="trips-grid"></div>
     </section>
 
-    <!-- TAB: MAPA -->
+    <!-- TAB 3: MAPA DE FLOTA -->
     <section id="tab-mapa" class="tab-pane tab-pane--map">
-        <!-- Floating Header Controls on Map -->
+        <!-- Controles flotantes sobre el mapa -->
         <div class="map-overlay-header">
             <div class="map-search-bar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="map-search-icon">
@@ -272,24 +294,19 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <div class="autocomplete-wrap" style="flex:1;">
-                    <input type="text" id="map-search-input" class="map-search-field" placeholder="Buscar lugar o dirección en Google Maps Argentina..." autocomplete="off">
+                    <input type="text" id="map-search-input" class="map-search-field" placeholder="Buscar localidad o punto en el mapa..." autocomplete="off">
                     <ul id="map-search-sugerencias" class="suggestions-list" role="listbox"></ul>
                 </div>
             </div>
 
-            <div class="map-engine-badge">
-                <span class="engine-dot"></span>
-                <span class="engine-text">SerpApi Google Maps Engine</span>
-            </div>
-
             <div class="map-layer-selector">
-                <button type="button" class="map-layer-btn active" data-layer="dark" title="Modo Oscuro">
+                <button type="button" class="map-layer-btn active" data-layer="dark" title="Vista Oscura">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                     <span>Dark</span>
                 </button>
-                <button type="button" class="map-layer-btn" data-layer="streets" title="Mapa Callejero">
+                <button type="button" class="map-layer-btn" data-layer="streets" title="Vista Callejera">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-                    <span>Streets</span>
+                    <span>Calles</span>
                 </button>
                 <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -297,20 +314,20 @@
                 </button>
             </div>
 
-            <!-- Toolbar de Puntos de Interés (Paradas de Servicio y Comida) -->
+            <!-- Toolbar de Puntos de Interes -->
             <div class="map-poi-selector">
                 <button type="button" id="btn-poi-combustible" class="map-poi-btn" data-poi="gasolina" title="Mostrar Estaciones de Servicio en el mapa">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/><path d="M14 22V14a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v8"/><line x1="18" y1="12" x2="18" y2="7"/></svg>
                     <span>Estaciones de Servicio</span>
                 </button>
-                <button type="button" id="btn-poi-comida" class="map-poi-btn" data-poi="comida" title="Mostrar Puestos de Comida y Paradores de Descanso">
+                <button type="button" id="btn-poi-comida" class="map-poi-btn" data-poi="comida" title="Mostrar Paradores de Descanso">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-                    <span>Comidas y Descansos</span>
+                    <span>Paradores y Descansos</span>
                 </button>
             </div>
         </div>
 
-        <!-- Floating Stats Panel at Bottom Left -->
+        <!-- Estadisticas Flotantes -->
         <div class="map-overlay-stats">
             <div class="map-stat-item">
                 <span class="map-stat-label">Rutas en Mapa</span>
@@ -318,7 +335,7 @@
             </div>
             <div class="map-stat-divider"></div>
             <div class="map-stat-item">
-                <span class="map-stat-label">En Tránsito</span>
+                <span class="map-stat-label">En Ruta</span>
                 <span id="map-stat-transito" class="map-stat-val blue">0</span>
             </div>
             <div class="map-stat-divider"></div>
@@ -331,27 +348,30 @@
         <div id="mapa" class="map-full" aria-label="Mapa de operaciones"></div>
     </section>
 
-    <!-- TAB: MIS CAMIONES -->
+    <!-- TAB 4: FLOTA Y CHOFERES -->
     <section id="tab-camiones" class="tab-pane">
         <!-- Sub-tabs -->
         <div class="subtabs-bar">
             <button class="subtab-btn active" data-subtab="sub-camiones" id="sbtn-camiones">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="1" y="11" width="15" height="10" rx="1"/><path d="M16 11l4 3v7h-4V11z"/><circle cx="5.5" cy="21" r="1.5"/><circle cx="18.5" cy="21" r="1.5"/></svg>
-                Camiones
+                <span>Camiones de Flota</span>
             </button>
             <button class="subtab-btn" data-subtab="sub-camioneros" id="sbtn-camioneros">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                Camioneros
+                <span>Choferes y Conducta</span>
             </button>
         </div>
 
         <!-- Sub-panel: Camiones -->
         <div id="sub-camiones" class="subtab-pane active">
-            <div class="section-header" style="margin-bottom:1.25rem">
-                <h2 class="section-title">Mis Camiones</h2>
+            <div class="section-header-row">
+                <div>
+                    <h2 class="section-title">Flota de Camiones</h2>
+                    <p class="section-subtitle">Especificaciones tecnicas, capacidades maximas y configuracion de consumo.</p>
+                </div>
                 <button id="btn-nuevo-camion" class="btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Nuevo Camion
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Nuevo Camion</span>
                 </button>
             </div>
             <div id="lista-camiones" class="trips-grid"></div>
@@ -359,11 +379,14 @@
 
         <!-- Sub-panel: Camioneros -->
         <div id="sub-camioneros" class="subtab-pane">
-            <div class="section-header" style="margin-bottom:1.25rem">
-                <h2 class="section-title">Camioneros</h2>
+            <div class="section-header-row">
+                <div>
+                    <h2 class="section-title">Plantel de Choferes</h2>
+                    <p class="section-subtitle">Control de scoring, vigencia de licencias profesionales, bonos y capacitaciones.</p>
+                </div>
                 <button id="btn-nuevo-camionero" class="btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Nuevo Camionero
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Nuevo Chofer</span>
                 </button>
             </div>
             <div id="lista-camioneros" class="camioneros-grid"></div>
@@ -372,15 +395,15 @@
 
 </main>
 
-<!-- BOTTOM NAV -->
-<nav id="bottom-nav" aria-label="Navegacion">
+<!-- NAVEGACION INFERIOR MOVIL -->
+<nav id="bottom-nav" aria-label="Navegacion movil">
     <button class="nav-btn active" data-tab="nueva-ruta" id="nav-nueva-ruta">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <line x1="12" y1="8" x2="12" y2="16"/>
             <line x1="8" y1="12" x2="16" y2="12"/>
         </svg>
-        <span>Nueva Ruta</span>
+        <span>Ruta</span>
     </button>
     <button class="nav-btn" data-tab="mis-viajes" id="nav-mis-viajes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -408,7 +431,7 @@
             <circle cx="5.5" cy="21" r="1.5"/>
             <circle cx="18.5" cy="21" r="1.5"/>
         </svg>
-        <span>Camiones</span>
+        <span>Flota</span>
     </button>
 </nav>
 
@@ -417,64 +440,59 @@
     <div class="modal-panel">
         <div class="modal-header">
             <h2 id="modal-camion-titulo" class="modal-title">Nuevo Camion</h2>
-            <button id="btn-cerrar-camion" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
+            <button id="btn-cerrar-camion" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
 
         <form id="form-camion" class="modal-form">
             <input type="hidden" id="cam-id" value="">
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cam-nombre">Nombre / Alias</label>
-                    <input type="text" id="cam-nombre" class="field-input" placeholder="Ej: Volque 01" required autocomplete="off">
+                    <label class="field-label" for="cam-nombre">Nombre / Identificador</label>
+                    <input type="text" id="cam-nombre" class="field-input" placeholder="Ej: Scania R450 - Unidad 01" required autocomplete="off">
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="cam-patente">Patente</label>
-                    <input type="text" id="cam-patente" class="field-input" placeholder="Ej: ABC 123" required autocomplete="off" style="text-transform:uppercase">
+                    <input type="text" id="cam-patente" class="field-input" placeholder="Ej: AA 123 BB" required autocomplete="off" style="text-transform:uppercase">
                 </div>
             </div>
             <div class="field-block">
-                <label class="field-label" for="cam-camionero-select">Camionero asignado</label>
+                <label class="field-label" for="cam-camionero-select">Chofer Habitual</label>
                 <select id="cam-camionero-select" class="field-input">
-                    <option value="">-- Sin camionero --</option>
+                    <option value="">-- Sin chofer asignado --</option>
                 </select>
             </div>
 
-            <div class="form-section-label">Dimensiones y peso</div>
+            <div class="form-section-label">Capacidad y Dimensiones</div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cam-peso">Peso maximo (tn)</label>
-                    <input type="number" id="cam-peso" class="field-input" placeholder="20" min="1" max="60" step="0.5" inputmode="decimal">
+                    <label class="field-label" for="cam-peso">Peso Maximo (tn)</label>
+                    <input type="number" id="cam-peso" class="field-input" placeholder="28.0" min="1" max="75" step="0.5" inputmode="decimal">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="cam-alto">Altura (m)</label>
-                    <input type="number" id="cam-alto" class="field-input" placeholder="4.0" min="1" max="5" step="0.1" inputmode="decimal">
+                    <label class="field-label" for="cam-alto">Altura Maxima (m)</label>
+                    <input type="number" id="cam-alto" class="field-input" placeholder="4.1" min="1" max="5" step="0.1" inputmode="decimal">
                 </div>
             </div>
             <div class="fields-row">
                 <div class="field-block">
                     <label class="field-label" for="cam-largo">Longitud (m)</label>
-                    <input type="number" id="cam-largo" class="field-input" placeholder="18" min="3" max="30" step="0.5" inputmode="decimal">
+                    <input type="number" id="cam-largo" class="field-input" placeholder="18.5" min="3" max="35" step="0.5" inputmode="decimal">
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="cam-ancho">Ancho (m)</label>
-                    <input type="number" id="cam-ancho" class="field-input" placeholder="2.5" min="1" max="3" step="0.1" inputmode="decimal">
+                    <input type="number" id="cam-ancho" class="field-input" placeholder="2.6" min="1" max="4" step="0.1" inputmode="decimal">
                 </div>
             </div>
 
-            <div class="form-section-label">Consumo estimado (L/100km)</div>
+            <div class="form-section-label">Consumo de Gasoil (L/100km)</div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cam-cons-vacio">Vacio</label>
-                    <input type="number" id="cam-cons-vacio" class="field-input" placeholder="25" min="5" max="100" step="1" inputmode="decimal">
+                    <label class="field-label" for="cam-cons-vacio">Sin Carga</label>
+                    <input type="number" id="cam-cons-vacio" class="field-input" placeholder="24" min="5" max="100" step="1" inputmode="decimal">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="cam-cons-cargado">Cargado</label>
-                    <input type="number" id="cam-cons-cargado" class="field-input" placeholder="38" min="5" max="100" step="1" inputmode="decimal">
+                    <label class="field-label" for="cam-cons-cargado">A Plena Carga</label>
+                    <input type="number" id="cam-cons-cargado" class="field-input" placeholder="36" min="5" max="100" step="1" inputmode="decimal">
                 </div>
             </div>
 
@@ -486,219 +504,199 @@
     </div>
 </div>
 
-<!-- MODAL: FICHA DEL CAMIONERO -->
+<!-- MODAL: FICHA DEL CHOFER -->
 <div id="modal-camionero" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-camionero-titulo">
     <div class="modal-panel modal-panel--wide">
         <div class="modal-header">
-            <h2 id="modal-camionero-titulo" class="modal-title">Nuevo Camionero</h2>
-            <button id="btn-cerrar-camionero" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <h2 id="modal-camionero-titulo" class="modal-title">Nuevo Chofer</h2>
+            <button id="btn-cerrar-camionero" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
 
         <form id="form-camionero" class="modal-form">
             <input type="hidden" id="cnr-id" value="">
 
-            <!-- Datos Personales -->
             <div class="form-section-label">Datos Personales</div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cnr-nombre">Nombre completo</label>
-                    <input type="text" id="cnr-nombre" class="field-input" placeholder="Ej: Juan Perez" required autocomplete="off">
+                    <label class="field-label" for="cnr-nombre">Nombre y Apellido</label>
+                    <input type="text" id="cnr-nombre" class="field-input" placeholder="Ej: Marcelo Gomez" required autocomplete="off">
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="cnr-dni">DNI</label>
-                    <input type="text" id="cnr-dni" class="field-input" placeholder="Ej: 30.123.456" autocomplete="off">
+                    <input type="text" id="cnr-dni" class="field-input" placeholder="Ej: 32.456.789" autocomplete="off">
                 </div>
             </div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cnr-tel">Telefono</label>
-                    <input type="tel" id="cnr-tel" class="field-input" placeholder="Ej: 011-15-1234-5678" autocomplete="off">
+                    <label class="field-label" for="cnr-tel">Telefono de Contacto</label>
+                    <input type="tel" id="cnr-tel" class="field-input" placeholder="Ej: 011-15-4433-2211" autocomplete="off">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="cnr-ingreso">Fecha de ingreso</label>
+                    <label class="field-label" for="cnr-ingreso">Fecha de Ingreso</label>
                     <input type="date" id="cnr-ingreso" class="field-input">
                 </div>
             </div>
 
-            <!-- Carnet Profesional -->
-            <div class="form-section-label">Carnet Profesional</div>
+            <div class="form-section-label">Licencia Profesional</div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cnr-carnet-num">N° de Carnet</label>
-                    <input type="text" id="cnr-carnet-num" class="field-input" placeholder="Ej: 1234567" autocomplete="off">
+                    <label class="field-label" for="cnr-carnet-num">Numero de Licencia</label>
+                    <input type="text" id="cnr-carnet-num" class="field-input" placeholder="Ej: 4567890" autocomplete="off">
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="cnr-carnet-cat">Categoria</label>
                     <select id="cnr-carnet-cat" class="field-input">
-                        <option value="">-- Seleccionar --</option>
-                        <option value="C">Categoria C</option>
-                        <option value="D">Categoria D</option>
-                        <option value="E">Categoria E</option>
+                        <option value="">-- Seleccionar Categoria --</option>
+                        <option value="C">Categoria C (Camiones sin acoplado)</option>
+                        <option value="D">Categoria D (Transporte de pasajeros)</option>
+                        <option value="E">Categoria E (Articulados y Bitrenes)</option>
                     </select>
                 </div>
             </div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="cnr-carnet-vto">Vencimiento del carnet</label>
+                    <label class="field-label" for="cnr-carnet-vto">Vencimiento de Licencia</label>
                     <input type="date" id="cnr-carnet-vto" class="field-input">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="cnr-camion-asignado">Camion asignado</label>
+                    <label class="field-label" for="cnr-camion-asignado">Camion Asignado</label>
                     <select id="cnr-camion-asignado" class="field-input">
                         <option value="">-- Sin asignar --</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Capacitaciones -->
-            <div class="form-section-label">Capacitaciones</div>
+            <div class="form-section-label">Cursos y Capacitaciones</div>
             <div id="cnr-caps-lista" class="caps-lista"></div>
             <div class="fields-row" style="align-items:flex-end">
                 <div class="field-block">
-                    <label class="field-label" for="cnr-cap-nombre">Curso / Certificacion</label>
-                    <input type="text" id="cnr-cap-nombre" class="field-input" placeholder="Ej: Manejo defensivo" autocomplete="off">
+                    <label class="field-label" for="cnr-cap-nombre">Certificacion / Curso</label>
+                    <input type="text" id="cnr-cap-nombre" class="field-input" placeholder="Ej: Manejo de Cargas Peligrosas" autocomplete="off">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="cnr-cap-fecha">Fecha</label>
+                    <label class="field-label" for="cnr-cap-fecha">Fecha Emision</label>
                     <input type="date" id="cnr-cap-fecha" class="field-input">
                 </div>
             </div>
             <button type="button" id="btn-agregar-cap" class="btn-secondary" style="width:100%;margin-top:0.5rem">
-                + Agregar Capacitacion
+                + Agregar Certificacion
             </button>
 
             <div class="modal-actions">
                 <button type="button" id="btn-cancelar-camionero" class="btn-ghost">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar Camionero</button>
+                <button type="submit" class="btn-primary">Guardar Chofer</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- MODAL: REGISTRAR COMPORTAMIENTO -->
+<!-- MODAL: REGISTRAR CONDUCTA / BONO -->
 <div id="modal-comportamiento" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-comp-titulo">
     <div class="modal-panel">
         <div class="modal-header">
-            <h2 id="modal-comp-titulo" class="modal-title">Registrar Comportamiento</h2>
-            <button id="btn-cerrar-comportamiento" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <h2 id="modal-comp-titulo" class="modal-title">Evaluacion de Conduccion</h2>
+            <button id="btn-cerrar-comportamiento" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
         <form id="form-comportamiento" class="modal-form">
             <input type="hidden" id="comp-camionero-id" value="">
 
-            <div class="form-section-label">Evaluacion del viaje</div>
             <div class="field-block">
-                <label class="field-label" for="comp-fecha">Fecha del registro</label>
+                <label class="field-label" for="comp-fecha">Fecha del Despacho</label>
                 <input type="date" id="comp-fecha" class="field-input" required>
             </div>
 
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="comp-ruta">Cumplio con la ruta</label>
+                    <label class="field-label" for="comp-ruta">Seguimiento de Ruta</label>
                     <select id="comp-ruta" class="field-input" required>
-                        <option value="si">Si, cumplio</option>
-                        <option value="no">No cumplio</option>
-                        <option value="parcial">Parcialmente</option>
+                        <option value="si">Cumplio ruta planificada</option>
+                        <option value="parcial">Desvio justificado</option>
+                        <option value="no">Desvio injustificado</option>
                     </select>
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="comp-puntualidad">Puntualidad</label>
                     <select id="comp-puntualidad" class="field-input" required>
-                        <option value="puntual">Puntual</option>
-                        <option value="leve">Tardanza leve</option>
-                        <option value="grave">Tardanza grave</option>
+                        <option value="puntual">Puntual en horario</option>
+                        <option value="leve">Demora leve</option>
+                        <option value="grave">Demora critica</option>
                     </select>
                 </div>
             </div>
 
             <div class="field-block">
-                <label class="field-label" for="comp-incidencias">Incidencias registradas</label>
-                <textarea id="comp-incidencias" class="field-input" rows="2" placeholder="Describa cualquier incidente, desvio o problema..."></textarea>
+                <label class="field-label" for="comp-incidencias">Incidencias en Ruta</label>
+                <textarea id="comp-incidencias" class="field-input" rows="2" placeholder="Detalle de peajes, corte de ruta, controles de gendarmeria o averias..."></textarea>
             </div>
 
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="comp-bono">Se otorgo bono</label>
+                    <label class="field-label" for="comp-bono">Bono de Desempeno</label>
                     <select id="comp-bono" class="field-input">
-                        <option value="no">No</option>
-                        <option value="si">Si</option>
+                        <option value="no">No asignado</option>
+                        <option value="si">Asignar bono por viaje perfecto</option>
                     </select>
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="comp-obs">Observaciones</label>
-                    <input type="text" id="comp-obs" class="field-input" placeholder="Opcional..." autocomplete="off">
+                    <input type="text" id="comp-obs" class="field-input" placeholder="Comentarios adicionales..." autocomplete="off">
                 </div>
             </div>
 
             <div class="modal-actions">
                 <button type="button" id="btn-cancelar-comportamiento" class="btn-ghost">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar Registro</button>
+                <button type="submit" class="btn-primary">Guardar Evaluacion</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- MODAL: DETALLE DEL CAMIONERO (historial) -->
+<!-- MODAL: PERFIL COMPLETO DEL CHOFER -->
 <div id="modal-perfil-camionero" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-perfil-titulo">
     <div class="modal-panel modal-panel--wide">
         <div class="modal-header">
-            <h2 id="modal-perfil-titulo" class="modal-title">Perfil del Camionero</h2>
-            <button id="btn-cerrar-perfil" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <h2 id="modal-perfil-titulo" class="modal-title">Ficha Integral del Chofer</h2>
+            <button id="btn-cerrar-perfil" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
         <div id="perfil-contenido"></div>
-        <div class="modal-actions" style="margin-top:1rem">
-            <button id="btn-perfil-nuevo-registro" class="btn-primary">+ Registrar Comportamiento</button>
-            <button id="btn-perfil-editar" class="btn-secondary">Editar Ficha</button>
+        <div class="modal-actions" style="margin-top:1.25rem">
+            <button id="btn-perfil-nuevo-registro" class="btn-primary">+ Evaluar Viaje</button>
+            <button id="btn-perfil-editar" class="btn-secondary">Editar Datos</button>
         </div>
     </div>
 </div>
 
-<!-- MODAL: DETALLE DE VIAJE -->
+<!-- MODAL: DETALLE DEL VIAJE -->
 <div id="modal-detalle" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-detalle-titulo">
     <div class="modal-panel">
         <div class="modal-header">
-            <h2 id="modal-detalle-titulo" class="modal-title">Detalle del Viaje</h2>
-            <button id="btn-cerrar-detalle" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
+            <h2 id="modal-detalle-titulo" class="modal-title">Detalle del Despacho</h2>
+            <button id="btn-cerrar-detalle" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
 
         <div id="detalle-contenido" class="detail-rows"></div>
 
         <div class="modal-actions detail-actions">
-            <button id="btn-detalle-ver-mapa" class="btn-primary">Ver en mapa</button>
-            <button id="btn-detalle-estado" class="btn-secondary">Cambiar estado</button>
+            <button id="btn-detalle-ver-mapa" class="btn-primary">Ver en Mapa</button>
+            <button id="btn-detalle-imprimir-remito" class="btn-secondary">Imprimir Remito</button>
+            <button id="btn-detalle-estado" class="btn-secondary">Cambiar Estado</button>
             <button id="btn-detalle-editar" class="btn-secondary">Editar</button>
             <button id="btn-detalle-eliminar" class="btn-danger">Eliminar</button>
         </div>
     </div>
 </div>
 
-<!-- MODAL: DATOS DEL VIAJE -->
+<!-- MODAL: ASIGNACION DE CLIENTE Y REMITO -->
 <div id="modal-viaje" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-viaje-titulo">
     <div class="modal-panel">
         <div class="modal-header">
-            <h2 id="modal-viaje-titulo" class="modal-title">Datos del Viaje</h2>
-            <button id="btn-cerrar-viaje" class="modal-close" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
+            <h2 id="modal-viaje-titulo" class="modal-title">Emision de Despacho</h2>
+            <button id="btn-cerrar-viaje" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
 
         <form id="form-viaje" class="modal-form">
-            <div class="modal-section-title">Asignar a Camion</div>
             <div class="field-block">
-                <label class="field-label" for="vj-select-camion">Camion</label>
+                <label class="field-label" for="vj-select-camion">Camion de Asignacion</label>
                 <select id="vj-select-camion" class="field-input" required>
                     <option value="">-- Seleccionar camion --</option>
                 </select>
@@ -706,22 +704,21 @@
 
             <div class="form-divider"></div>
 
-            <div class="modal-section-title">Cliente</div>
             <div class="fields-row">
                 <div class="field-block">
-                    <label class="field-label" for="vj-cliente">Nombre del cliente</label>
-                    <input type="text" id="vj-cliente" class="field-input" placeholder="Nombre o razon social" required autocomplete="off">
+                    <label class="field-label" for="vj-cliente">Razon Social / Cliente</label>
+                    <input type="text" id="vj-cliente" class="field-input" placeholder="Nombre de la empresa o receptor" required autocomplete="off">
                 </div>
                 <div class="field-block">
-                    <label class="field-label" for="vj-remito">N de remito</label>
-                    <input type="text" id="vj-remito" class="field-input" placeholder="Ej: 0001-00012345" required autocomplete="off">
+                    <label class="field-label" for="vj-remito">Numero de Remito Oficial</label>
+                    <input type="text" id="vj-remito" class="field-input" placeholder="Ej: R-0001-00045120" required autocomplete="off">
                 </div>
             </div>
 
             <div class="modal-actions">
                 <button type="button" id="btn-cancelar-viaje" class="btn-ghost">Cancelar</button>
                 <button type="submit" id="btn-guardar-viaje" class="btn-primary">
-                    <span id="vj-btn-texto">Guardar Viaje</span>
+                    <span id="vj-btn-texto">Confirmar y Emitir</span>
                     <span id="vj-btn-loader" class="spinner hidden" aria-hidden="true"></span>
                 </button>
             </div>
@@ -729,40 +726,7 @@
     </div>
 </div>
 
-<!-- MODAL: SERPAPI GOOGLE MAPS CONFIG -->
-<div id="modal-serpapi" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="serpapi-modal-title">
-    <div class="modal-panel modal-panel--sm">
-        <div class="modal-header">
-            <div class="modal-title-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:#38bdf8">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-                    <circle cx="12" cy="9" r="2.5"/>
-                </svg>
-                <h2 id="serpapi-modal-title" class="modal-title">SerpApi Google Maps Engine</h2>
-            </div>
-            <button id="btn-cerrar-modal-serpapi" class="modal-close" aria-label="Cerrar">&times;</button>
-        </div>
-        <div class="modal-body" style="margin-top:1rem;">
-            <p style="font-size:0.875rem; color:var(--text-muted,#94a3b8); margin-bottom:1rem; line-height:1.5;">
-                Conecta el motor de búsqueda <strong>Google Maps de SerpApi</strong> (<code>https://serpapi.com/search?engine=google_maps</code>) para geocodificar direcciones y lugares en Argentina con la API oficial de Google Maps.
-            </p>
-            <div class="field-block">
-                <label class="field-label" for="input-serpapi-key">SerpApi API Key</label>
-                <input type="text" id="input-serpapi-key" class="field-input" placeholder="Ingresa tu API Key de SerpApi..." autocomplete="off">
-                <small style="display:block; margin-top:6px; font-size:0.75rem; color:var(--text-muted,#64748b);">
-                    Si la clave se deja en blanco o falla por red/cuota, el sistema continuará funcionando mediante el fallback automático.
-                </small>
-            </div>
-            <div id="serpapi-status-badge" style="margin-top:12px; font-size:0.8rem; padding:8px 12px; border-radius:6px; display:none;"></div>
-        </div>
-        <div class="modal-actions" style="margin-top:1.25rem;">
-            <button type="button" id="btn-borrar-serpapi-key" class="btn-ghost" style="color:#ef4444;">Borrar Clave</button>
-            <button type="button" id="btn-guardar-serpapi-key" class="btn-primary">Guardar Clave</button>
-        </div>
-    </div>
-</div>
-
-<!-- Toasts -->
+<!-- TOASTS DE NOTIFICACION -->
 <div id="toast-container" role="status" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

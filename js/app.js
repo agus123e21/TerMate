@@ -110,8 +110,27 @@
 
     function guardarGeoCache() {
         try {
+            const keys = Object.keys(cacheGeo);
+            if (keys.length > 100) {
+                const podada = {};
+                keys.slice(0, 100).forEach(k => { podada[k] = cacheGeo[k]; });
+                cacheGeo = podada;
+            }
             localStorage.setItem(KEY_GEO_CACHE, JSON.stringify(cacheGeo));
         } catch {}
+    }
+
+    function comprimirCoords(coords, maxPuntos = 150) {
+        if (!Array.isArray(coords) || coords.length <= maxPuntos) return coords;
+        const step = Math.ceil(coords.length / maxPuntos);
+        const res = [];
+        for (let i = 0; i < coords.length; i += step) {
+            res.push(coords[i]);
+        }
+        if (coords.length > 0 && res[res.length - 1] !== coords[coords.length - 1]) {
+            res.push(coords[coords.length - 1]);
+        }
+        return res;
     }
 
     function safeParseArray(raw, fallback = []) {
@@ -352,7 +371,7 @@
             coordsDestino,
             distancia: dataRuta.distancia,
             tiempo: dataRuta.tiempo,
-            coordsRuta: dataRuta.coordenadas,
+            coordsRuta: comprimirCoords(dataRuta.coordenadas),
             calles: dataRuta.calles || [],
             warnings: dataRuta.warnings || [],
             esAproximada
@@ -1624,6 +1643,9 @@
                         ? { ...rutaPendiente, ...datosExtra }
                         : { ...envios[idx], ...datosExtra };
                     delete datosActualizados.esEdicion;
+                    if (datosActualizados.coordsRuta) {
+                        datosActualizados.coordsRuta = comprimirCoords(datosActualizados.coordsRuta);
+                    }
                     envios[idx] = datosActualizados;
                 }
                 showToast('Despacho actualizado.', 'success');
@@ -1631,6 +1653,9 @@
             } else if (rutaPendiente) {
                 const nuevo = { id: contadorId++, ...rutaPendiente, ...datosExtra };
                 delete nuevo.esEdicion;
+                if (nuevo.coordsRuta) {
+                    nuevo.coordsRuta = comprimirCoords(nuevo.coordsRuta);
+                }
                 envios.push(nuevo);
                 showToast('Remito y ruta emitidos con exito.', 'success');
                 document.getElementById('form-envio')?.reset();

@@ -44,7 +44,18 @@
     const KEY_CONT_CAM     = 'termate_cont_camiones';
     const KEY_CAMIONEROS   = 'termate_camioneros';
     const KEY_CONT_CNR     = 'termate_cont_camioneros';
-    const cacheGeo = JSON.parse(localStorage.getItem(KEY_GEO_CACHE) || '{}');
+    let cacheGeo = {};
+    try {
+        const rawCache = localStorage.getItem(KEY_GEO_CACHE);
+        if (rawCache) {
+            const parsed = JSON.parse(rawCache);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                cacheGeo = parsed;
+            }
+        }
+    } catch {
+        cacheGeo = {};
+    }
 
     // ═══════════════════════════════════════════════════════════
     // 2. REGISTRO SERVICE WORKER (PWA)
@@ -351,6 +362,10 @@
     }
 
     function initMapas() {
+        if (typeof L === 'undefined') {
+            console.warn('Leaflet no disponible');
+            return;
+        }
         const argentinaBounds = L.latLngBounds(
             L.latLng(-55.1, -73.6),
             L.latLng(-21.8, -53.6)

@@ -1561,7 +1561,7 @@
         document.getElementById('lista-viajes')?.addEventListener('click', e => {
             const dlBtn = e.target.closest('.btn-download');
             if (dlBtn) {
-                e.stopPropagation();
+                e.preventDefault();
                 generarComprobante(Number(dlBtn.dataset.id));
                 return;
             }

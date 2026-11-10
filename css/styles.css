@@ -1091,8 +1091,11 @@ select.field-input {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    width: 32px;
-    height: 32px;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     border-radius: var(--r-sm);
     background: var(--c-card);
     border: 1px solid var(--c-border);

@@ -44,14 +44,46 @@
     const KEY_CONT_CAM     = 'termate_cont_camiones';
     const KEY_CAMIONEROS   = 'termate_camioneros';
     const KEY_CONT_CNR     = 'termate_cont_camioneros';
-    const cacheGeo = JSON.parse(localStorage.getItem(KEY_GEO_CACHE) || '{}');
+    let cacheGeo = {};
+    try {
+        const rawCache = localStorage.getItem(KEY_GEO_CACHE);
+        if (rawCache) {
+            const parsed = JSON.parse(rawCache);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                cacheGeo = parsed;
+            }
+        }
+    } catch {
+        cacheGeo = {};
+    }
 
     // ═══════════════════════════════════════════════════════════
     // 2. REGISTRO SERVICE WORKER (PWA)
     // ═══════════════════════════════════════════════════════════
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-        navigator.serviceWorker.register('./sw.js')
-            .catch(err => console.warn('[SW] Registro omitido:', err));
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            navigator.serviceWorker.register('sw.js?v=4.1.0').then(reg => {
+                if (isLocalhost) {
+                    reg.update();
+                }
+            }).catch(() => {});
+
+            // En desarrollo local, escuchar actualización de SW y recargar para usar siempre la versión más fresca
+            if (isLocalhost) {
+                let refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!refreshing) {
+                        refreshing = true;
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    }
+    // Purgar inmediatamente el almacén viejo de Carto
+    if ('caches' in window) {
+        caches.delete('termate-tiles-v1').catch(() => {});
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -99,24 +131,52 @@
 
     function guardarGeoCache() {
         try {
+            const keys = Object.keys(cacheGeo);
+            if (keys.length > 100) {
+                const podada = {};
+                keys.slice(0, 100).forEach(k => { podada[k] = cacheGeo[k]; });
+                cacheGeo = podada;
+            }
             localStorage.setItem(KEY_GEO_CACHE, JSON.stringify(cacheGeo));
         } catch {}
     }
 
+    function comprimirCoords(coords, maxPuntos = 150) {
+        if (!Array.isArray(coords) || coords.length <= maxPuntos) return coords;
+        const step = Math.ceil(coords.length / maxPuntos);
+        const res = [];
+        for (let i = 0; i < coords.length; i += step) {
+            res.push(coords[i]);
+        }
+        if (coords.length > 0 && res[res.length - 1] !== coords[coords.length - 1]) {
+            if (res.length >= maxPuntos) {
+                res[res.length - 1] = coords[coords.length - 1];
+            } else {
+                res.push(coords[coords.length - 1]);
+            }
+        }
+        return res;
+    }
+
+    function safeParseArray(raw, fallback = []) {
+        if (!raw) return fallback;
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(x => x && typeof x === 'object') : fallback;
+        } catch {
+            return fallback;
+        }
+    }
+
     function cargarDatos() {
         try {
-            const e = localStorage.getItem(KEY_ENVIOS);
-            if (e) envios = JSON.parse(e);
-            const c = localStorage.getItem(KEY_CONTADOR);
-            if (c) contadorId = parseInt(c, 10);
-            const ca = localStorage.getItem(KEY_CAMIONES);
-            if (ca) camiones = JSON.parse(ca);
-            const cc = localStorage.getItem(KEY_CONT_CAM);
-            if (cc) contadorCamiones = parseInt(cc, 10);
-            const cnr = localStorage.getItem(KEY_CAMIONEROS);
-            if (cnr) camioneros = JSON.parse(cnr);
-            const ccnr = localStorage.getItem(KEY_CONT_CNR);
-            if (ccnr) contadorCamioneros = parseInt(ccnr, 10);
+            envios = safeParseArray(localStorage.getItem(KEY_ENVIOS), []);
+            camiones = safeParseArray(localStorage.getItem(KEY_CAMIONES), []);
+            camioneros = safeParseArray(localStorage.getItem(KEY_CAMIONEROS), []);
+
+            const rawId = parseInt(localStorage.getItem(KEY_CONTADOR), 10);
+            const maxEnvioId = envios.reduce((max, e) => Math.max(max, Number(e?.id) || 0), 0);
+            contadorId = Number.isInteger(rawId) && rawId > 0 ? rawId : Math.max(1, maxEnvioId + 1);
 
             // Cargar datos por defecto iniciales si esta completamente vacio
             if (camiones.length === 0) {
@@ -125,13 +185,22 @@
                     { id: 2, nombre: 'Mercedes-Benz Actros 2645', patente: 'AE 789 OP', camionero: 'Martin Rodriguez', camioneroId: 2, peso: 30, alto: 4.0, largo: 19.0, ancho: 2.6, consumoVacio: 25, consumoLleno: 38 }
                 ];
                 contadorCamiones = 3;
+            } else {
+                const rawCam = parseInt(localStorage.getItem(KEY_CONT_CAM), 10);
+                const maxCamId = camiones.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
+                contadorCamiones = Number.isInteger(rawCam) && rawCam > 0 ? rawCam : Math.max(1, maxCamId + 1);
             }
+
             if (camioneros.length === 0) {
                 camioneros = [
                     { id: 1, nombre: 'Carlos Mendez', dni: '32.145.890', tel: '011-15-5544-3322', ingreso: '2023-03-15', carnetNum: '4589012', carnetCat: 'E', carnetVto: '2027-08-20', camionAsignadoId: 1, capacitaciones: [{ nombre: 'Cargas Peligrosas', fecha: '2024-02-10' }], historial: [{ fecha: '2026-08-10', ruta: 'si', puntualidad: 'puntual', incidencias: '', bono: 'si', obs: 'Excelente viaje' }] },
                     { id: 2, nombre: 'Martin Rodriguez', dni: '35.478.120', tel: '0341-15-6677-8899', ingreso: '2024-01-10', carnetNum: '5120340', carnetCat: 'E', carnetVto: '2028-01-15', camionAsignadoId: 2, capacitaciones: [{ nombre: 'Manejo Defensivo', fecha: '2024-05-12' }], historial: [] }
                 ];
                 contadorCamioneros = 3;
+            } else {
+                const rawCnr = parseInt(localStorage.getItem(KEY_CONT_CNR), 10);
+                const maxCnrId = camioneros.reduce((max, cnr) => Math.max(max, Number(cnr?.id) || 0), 0);
+                contadorCamioneros = Number.isInteger(rawCnr) && rawCnr > 0 ? rawCnr : Math.max(1, maxCnrId + 1);
             }
         } catch (err) {
             console.error('[Storage] Error al cargar:', err);
@@ -159,7 +228,7 @@
         { nombre: 'Parana, Entre Rios', lat: -31.7333, lon: -60.5333 }
     ];
 
-    async function buscarSugerenciasFederales(query) {
+    async function buscarSugerenciasFederales(query, signal = null) {
         if (!query || query.length < 2) return [];
 
         if (navigator.onLine) {
@@ -171,9 +240,13 @@
                     countrycodes: 'ar',
                     addressdetails: 1
                 });
+                const timeoutSignal = AbortSignal.timeout(3500);
+                const fetchSignal = signal
+                    ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeoutSignal]) : signal)
+                    : timeoutSignal;
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
                     headers: { 'User-Agent': 'TerMateLogistics/3.0' },
-                    signal: AbortSignal.timeout(3500)
+                    signal: fetchSignal
                 });
                 if (res.ok) {
                     const data = await res.json();
@@ -198,7 +271,9 @@
                         });
                     }
                 }
-            } catch {}
+            } catch (err) {
+                if (err.name === 'AbortError') throw err;
+            }
         }
 
         // Fallback local instantaneo
@@ -321,7 +396,7 @@
             coordsDestino,
             distancia: dataRuta.distancia,
             tiempo: dataRuta.tiempo,
-            coordsRuta: dataRuta.coordenadas,
+            coordsRuta: comprimirCoords(dataRuta.coordenadas),
             calles: dataRuta.calles || [],
             warnings: dataRuta.warnings || [],
             esAproximada
@@ -332,25 +407,44 @@
     // 7. GESTION DE MAPAS LEAFLET
     // ═══════════════════════════════════════════════════════════
     const TILE_PROVIDERS = {
-        dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        streets: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        streets: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
 
     let currentTileLayerFull = null;
+    let currentTileLayerInline = null;
 
     function cambiarCapaMapa(map, layerType) {
         if (!map) return;
-        const url = TILE_PROVIDERS[layerType] || TILE_PROVIDERS.dark;
-        const attrib = layerType === 'satellite' ? 'Esri, Maxar' : 'OpenStreetMap, CARTO';
+        const targetType = (layerType === 'satellite') ? 'satellite' : 'streets';
+        const url = TILE_PROVIDERS[targetType];
+        const attrib = targetType === 'satellite' 
+            ? 'Tiles &copy; Esri' 
+            : '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
         
-        if (currentTileLayerFull) {
-            map.removeLayer(currentTileLayerFull);
+        const isInline = (map === mapaInline);
+        const currentLayer = isInline ? currentTileLayerInline : currentTileLayerFull;
+
+        if (currentLayer) {
+            map.removeLayer(currentLayer);
         }
-        currentTileLayerFull = L.tileLayer(url, { attribution: attrib, maxZoom: 19 }).addTo(map);
+        const newLayer = L.tileLayer(url, { 
+            attribution: attrib, 
+            maxZoom: 18
+        }).addTo(map);
+
+        if (isInline) {
+            currentTileLayerInline = newLayer;
+        } else {
+            currentTileLayerFull = newLayer;
+        }
     }
 
     function initMapas() {
+        if (typeof L === 'undefined') {
+            console.warn('Leaflet no disponible');
+            return;
+        }
         const argentinaBounds = L.latLngBounds(
             L.latLng(-55.1, -73.6),
             L.latLng(-21.8, -53.6)
@@ -368,7 +462,7 @@
         if (!mapaFull && document.getElementById('mapa')) {
             try {
                 mapaFull = L.map('mapa', { ...mapOpts, scrollWheelZoom: true }).setView([-38.4, -63.6], 5);
-                cambiarCapaMapa(mapaFull, 'dark');
+                cambiarCapaMapa(mapaFull, 'streets');
             } catch (err) {
                 console.error(err);
             }
@@ -383,13 +477,13 @@
                     dragging: !isMobile,
                     tap: true
                 }).setView([-38.4, -63.6], 5);
-                L.tileLayer(TILE_PROVIDERS.dark, { attribution: 'CARTO', maxZoom: 19 }).addTo(mapaInline);
+                cambiarCapaMapa(mapaInline, 'streets');
             } catch (err) {
                 console.error(err);
             }
         }
 
-        // Capas
+        // Capas Mapa Full
         document.querySelectorAll('.map-layer-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
@@ -398,13 +492,24 @@
             });
         });
 
+        // Capas Mapa Inline
+        document.querySelectorAll('.inline-layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.inline-layer-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cambiarCapaMapa(mapaInline, btn.dataset.layer);
+            });
+        });
+
         // Buscador en mapa full
         setupAutocompletado('map-search-input', 'map-search-sugerencias');
     }
 
     // ─── POIS DE ESTACIONES Y PARADORES ───────────────────────
-    let poiMarcadores = { gasolina: [], comida: [] };
-    let poiActivo = { gasolina: false, comida: false };
+    let poiMarcadoresFull = { gasolina: [], comida: [] };
+    let poiMarcadoresInline = { gasolina: [], comida: [] };
+    let poiActivoFull = { gasolina: false, comida: false };
+    let poiActivoInline = { gasolina: false, comida: false };
 
     const POIS_ARGENTINA = {
         gasolina: [
@@ -445,17 +550,24 @@
         return L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
     }
 
-    function togglePOIMapa(categoria) {
-        if (!mapaFull) return;
+    function togglePOIMapa(categoria, target = 'full') {
+        const isInline = (target === 'inline');
+        const map = isInline ? mapaInline : mapaFull;
+        if (!map) return;
 
-        poiActivo[categoria] = !poiActivo[categoria];
-        const btnId = categoria === 'gasolina' ? 'btn-poi-combustible' : 'btn-poi-comida';
+        const estadosActivos = isInline ? poiActivoInline : poiActivoFull;
+        const marcadoresObj = isInline ? poiMarcadoresInline : poiMarcadoresFull;
+
+        estadosActivos[categoria] = !estadosActivos[categoria];
+        const btnId = isInline
+            ? (categoria === 'gasolina' ? 'btn-inline-poi-combustible' : 'btn-inline-poi-comida')
+            : (categoria === 'gasolina' ? 'btn-poi-combustible' : 'btn-poi-comida');
         const btn = document.getElementById(btnId);
 
-        if (!poiActivo[categoria]) {
+        if (!estadosActivos[categoria]) {
             if (btn) btn.classList.remove('active');
-            poiMarcadores[categoria].forEach(m => mapaFull.removeLayer(m));
-            poiMarcadores[categoria] = [];
+            marcadoresObj[categoria].forEach(m => map.removeLayer(m));
+            marcadoresObj[categoria] = [];
             showToast(`Ocultando ${categoria === 'gasolina' ? 'estaciones de servicio' : 'paradores de descanso'}.`, 'info');
             return;
         }
@@ -465,22 +577,22 @@
         const icono = categoria === 'gasolina' ? crearIconoCombustible() : crearIconoComida();
 
         pois.forEach(p => {
-            const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(mapaFull);
+            const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(map);
             const tipoLabel = categoria === 'gasolina' ? 'Estacion de Servicio' : 'Parador de Descanso';
             const popupHtml = `<div class="popup-titulo" style="color:${categoria === 'gasolina' ? '#34d399' : '#fbbf24'};font-weight:700">
                 ${tipoLabel}
             </div>
-            <div class="popup-linea"><strong>${p.titulo}</strong></div>
-            <div class="popup-linea">${p.direccion}</div>
+            <div class="popup-linea"><strong>${escapeHTML(p.titulo)}</strong></div>
+            <div class="popup-linea">${escapeHTML(p.direccion)}</div>
             <div class="popup-linea" style="color:#38bdf8;font-weight:600">Calificacion: ${p.rating} / 5 (${p.reviews} resenas)</div>`;
             m.bindPopup(popupHtml);
-            poiMarcadores[categoria].push(m);
+            marcadoresObj[categoria].push(m);
         });
 
-        if (poiMarcadores[categoria].length > 0) {
+        if (marcadoresObj[categoria].length > 0 && !isInline) {
             try {
-                const group = L.featureGroup(poiMarcadores[categoria]);
-                mapaFull.fitBounds(group.getBounds().pad(0.1));
+                const group = L.featureGroup(marcadoresObj[categoria]);
+                map.fitBounds(group.getBounds().pad(0.1));
             } catch {}
         }
 
@@ -527,7 +639,7 @@
         if (elDist) elDist.textContent = formatoDistancia(totalDist);
     }
 
-    function actualizarMapa(instanciaMapa, refMarcadores, refPolylines, incluirTodos) {
+    function actualizarMapa(instanciaMapa, refMarcadores, refPolylines, incluirTodos, viajeTemporal = null) {
         if (!instanciaMapa) return;
 
         Object.values(refMarcadores).forEach(m => instanciaMapa.removeLayer(m));
@@ -536,23 +648,26 @@
         for (const k in refMarcadores) delete refMarcadores[k];
         for (const k in refPolylines) delete refPolylines[k];
 
+        const esCoordValida = c => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]);
         const todosCoords = [];
-        const enviosAMapear = incluirTodos ? envios : envios.slice(-1);
+        const enviosAMapear = viajeTemporal ? [viajeTemporal] : (incluirTodos ? envios : envios.slice(-1));
 
         enviosAMapear.forEach(e => {
-            if (!e.coordsDestino) return;
+            if (!e) return;
             const color = colorPorEstado(e.estado);
 
             // Destino
-            const mDest = L.marker(e.coordsDestino, { icon: crearIconoDestino(color) }).addTo(instanciaMapa);
-            mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${e.destino}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
-            refMarcadores[e.id] = mDest;
-            todosCoords.push(e.coordsDestino);
+            if (esCoordValida(e.coordsDestino)) {
+                const mDest = L.marker(e.coordsDestino, { icon: crearIconoDestino(color) }).addTo(instanciaMapa);
+                mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${escapeHTML(e.destino)}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
+                refMarcadores[e.id] = mDest;
+                todosCoords.push(e.coordsDestino);
+            }
 
             // Origen
-            if (e.coordsOrigen) {
+            if (esCoordValida(e.coordsOrigen)) {
                 const mOr = L.marker(e.coordsOrigen, { icon: crearIconoOrigen() }).addTo(instanciaMapa);
-                mOr.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#10b981">Origen de Carga</div><div style="font-size:0.8rem;color:#94a3b8">${e.origen}</div>`);
+                mOr.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#10b981">Origen de Carga</div><div style="font-size:0.8rem;color:#94a3b8">${escapeHTML(e.origen)}</div>`);
                 refMarcadores[`${e.id}_or`] = mOr;
                 todosCoords.push(e.coordsOrigen);
 
@@ -568,7 +683,7 @@
                     
                     const distTxt = formatoDistancia(e.distancia);
                     const rutaPopup = `<div style="font-weight:700;font-size:0.88rem">Ruta #${String(e.id).padStart(4,'0')}</div>`
-                        + `<div style="font-size:0.8rem;margin-top:4px">${e.origen.split(',')[0]} -> ${e.destino.split(',')[0]}</div>`
+                        + `<div style="font-size:0.8rem;margin-top:4px">${escapeHTML((e.origen || '').split(',')[0])} -&gt; ${escapeHTML((e.destino || '').split(',')[0])}</div>`
                         + `<div style="font-size:0.8rem;color:#38bdf8;font-weight:600;margin-top:2px">Distancia: ${distTxt}</div>`;
                     poly.bindPopup(rutaPopup);
                     refPolylines[e.id] = poly;
@@ -576,10 +691,17 @@
             }
         });
 
-        if (todosCoords.length > 0) {
-            const grupo = L.featureGroup(todosCoords.map(c => L.marker(c)));
+        if (todosCoords.length === 0) {
             try {
-                instanciaMapa.fitBounds(grupo.getBounds().pad(0.2));
+                instanciaMapa.setView([-38.4, -63.6], 5);
+            } catch {}
+        } else if (todosCoords.length === 1) {
+            try {
+                instanciaMapa.setView(todosCoords[0], 12);
+            } catch {}
+        } else {
+            try {
+                instanciaMapa.fitBounds(L.latLngBounds(todosCoords).pad(0.15), { maxZoom: 14 });
             } catch {}
         }
     }
@@ -651,10 +773,16 @@
             const camion = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
             const dist   = formatoDistancia(e.distancia);
             const tiempo = formatoTiempo(e.tiempo);
-            const fuel   = e.distancia ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
-            const camionLabel = camion ? `${camion.nombre}${camion.patente ? ' (' + camion.patente + ')' : ''}` : null;
+            const fuel   = (e.distancia !== null && e.distancia !== undefined) ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
+            const camionLabel = camion ? `${escapeHTML(camion.nombre)}${camion.patente ? ' (' + escapeHTML(camion.patente) + ')' : ''}` : null;
+            const oriCiudad = escapeHTML((e.origen || '').split(',')[0]);
+            const oriProv   = escapeHTML((e.origen || '').split(',').slice(1).join(',').trim() || 'Argentina');
+            const destCiudad = escapeHTML((e.destino || '').split(',')[0]);
+            const destProv   = escapeHTML((e.destino || '').split(',').slice(1).join(',').trim() || 'Argentina');
+            const productoTxt = `${escapeHTML(e.producto)}${e.pesoCarga ? ' · ' + escapeHTML(e.pesoCarga) + ' tn' : ''}`;
+            const remitoTxt = e.remito ? escapeHTML(e.remito) : '';
 
-            return `<div class="viaje-card-v2" data-id="${e.id}" role="button" tabindex="0">
+            return `<div class="viaje-card-v2" data-id="${e.id}" tabindex="0">
                 <!-- Estado e ID -->
                 <div class="vc2-estado-bar">
                     <span class="vc2-estado-badge ${clase}">${estadoLabel}</span>
@@ -665,14 +793,14 @@
                 <div class="vc2-ruta">
                     <div class="vc2-punto">
                         <span class="vc2-dot vc2-dot--ori"></span>
-                        <span class="vc2-ciudad">${e.origen.split(',')[0]}</span>
-                        <span class="vc2-provincia">${e.origen.split(',').slice(1).join(',').trim() || 'Argentina'}</span>
+                        <span class="vc2-ciudad">${oriCiudad}</span>
+                        <span class="vc2-provincia">${oriProv}</span>
                     </div>
                     <div class="vc2-linea-ruta"></div>
                     <div class="vc2-punto">
                         <span class="vc2-dot vc2-dot--dest"></span>
-                        <span class="vc2-ciudad">${e.destino.split(',')[0]}</span>
-                        <span class="vc2-provincia">${e.destino.split(',').slice(1).join(',').trim() || 'Argentina'}</span>
+                        <span class="vc2-ciudad">${destCiudad}</span>
+                        <span class="vc2-provincia">${destProv}</span>
                     </div>
                 </div>
 
@@ -705,15 +833,15 @@
                     </span>` : ''}
                     <span class="vc2-tag">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                        ${e.producto}${e.pesoCarga ? ' · ' + e.pesoCarga + ' tn' : ''}
+                        ${productoTxt}
                     </span>
-                    ${e.remito ? `<span class="vc2-tag" style="color:var(--c-primary-light);font-weight:600">
-                        Remito: ${e.remito}
+                    ${remitoTxt ? `<span class="vc2-tag" style="color:var(--c-primary-light);font-weight:600">
+                        Remito: ${remitoTxt}
                     </span>` : ''}
                 </div>
 
                 <!-- Accion Rapida de Descarga -->
-                <button class="btn-download" data-id="${e.id}" title="Imprimir Remito Oficial" onclick="event.stopPropagation()">
+                <button class="btn-download" data-id="${e.id}" title="Imprimir Remito Oficial">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                         <polyline points="6 9 6 2 18 2 18 9"/>
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -740,27 +868,45 @@
         if (!input || !lista) return;
 
         let delay = null;
+        let abortCtrl = null;
 
         input.addEventListener('input', () => {
             clearTimeout(delay);
+            if (abortCtrl) {
+                abortCtrl.abort();
+                abortCtrl = null;
+            }
+
             const q = input.value.trim();
             if (q.length < 2) { lista.classList.remove('visible'); return; }
 
             delay = setTimeout(async () => {
-                const sugs = await buscarSugerenciasFederales(q);
-                if (sugs.length === 0) { lista.classList.remove('visible'); return; }
+                abortCtrl = new AbortController();
+                const signal = abortCtrl.signal;
 
-                lista.innerHTML = sugs.map(s => `
-                    <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${s.completo}">
-                        <div class="sug-main-row">
-                            <span class="sug-principal">${s.principal}</span>
-                        </div>
-                        <div class="sug-sub-row">
-                            <span class="sug-secundario">${s.secundario}</span>
-                        </div>
-                    </li>
-                `).join('');
-                lista.classList.add('visible');
+                try {
+                    const sugs = await buscarSugerenciasFederales(q, signal);
+                    if (signal.aborted || input.value.trim() !== q) return;
+                    if (sugs.length === 0) { lista.classList.remove('visible'); return; }
+
+                    lista.innerHTML = sugs.map(s => {
+                        const latVal = Number.isFinite(Number(s.lat)) ? Number(s.lat) : 0;
+                        const lonVal = Number.isFinite(Number(s.lon)) ? Number(s.lon) : 0;
+                        return `
+                        <li role="option" data-lat="${latVal}" data-lon="${lonVal}" data-completo="${escapeHTML(s.completo)}">
+                            <div class="sug-main-row">
+                                <span class="sug-principal">${escapeHTML(s.principal)}</span>
+                            </div>
+                            <div class="sug-sub-row">
+                                <span class="sug-secundario">${escapeHTML(s.secundario)}</span>
+                            </div>
+                        </li>
+                    `;
+                    }).join('');
+                    lista.classList.add('visible');
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
             }, 250);
         });
 
@@ -833,6 +979,7 @@
         if (!vto) return '';
         const hoy = new Date();
         const vtoDate = new Date(vto);
+        if (isNaN(vtoDate.getTime())) return 'vto-exp';
         const diff = (vtoDate - hoy) / (1000 * 60 * 60 * 24);
         if (diff < 0)  return 'vto-exp';
         if (diff < 60) return 'vto-prox';
@@ -870,20 +1017,23 @@
             const score = calcularScore(cnr);
             const vtoClass = carnetVtoClass(cnr.carnetVto);
             const vtoLabel = cnr.carnetVto
-                ? (vtoClass === 'vto-exp' ? 'Licencia Vencida' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${cnr.carnetCat || 'E'} (Vigente)`)
-                : (cnr.carnetCat ? `Cat. ${cnr.carnetCat}` : 'Sin Licencia');
+                ? (vtoClass === 'vto-exp' ? 'Licencia Vencida' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${escapeHTML(cnr.carnetCat || 'E')} (Vigente)`)
+                : (cnr.carnetCat ? `Cat. ${escapeHTML(cnr.carnetCat)}` : 'Sin Licencia');
             const totalRegistros = (cnr.historial || []).length;
             const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
             const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
-            const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const initials = escapeHTML((cnr.nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase());
+            const nombreEsc = escapeHTML(cnr.nombre);
+            const dniEsc = cnr.dni ? 'DNI ' + escapeHTML(cnr.dni) : (cnr.tel ? escapeHTML(cnr.tel) : 'Sin contacto');
+            const camionAsigNom = camionAsig ? escapeHTML(camionAsig.nombre) : 'Sin camion fijo';
 
             return `<div class="camionero-card" data-id="${cnr.id}" role="button" tabindex="0">
                 <button class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar">&times;</button>
                 <div class="camionero-card-header">
                     <div class="camionero-avatar">${initials}</div>
                     <div class="camionero-info">
-                        <div class="camionero-nombre">${cnr.nombre}</div>
-                        <div class="camionero-dni">${cnr.dni ? 'DNI ' + cnr.dni : (cnr.tel || 'Sin contacto')}</div>
+                        <div class="camionero-nombre">${nombreEsc}</div>
+                        <div class="camionero-dni">${dniEsc}</div>
                     </div>
                     ${scoreRingHTML(score)}
                 </div>
@@ -893,7 +1043,7 @@
                     ${bonos > 0 ? `<span class="cnr-badge cnr-badge--bono">${bonos} Bono${bonos > 1 ? 's' : ''}</span>` : ''}
                 </div>
                 <div class="camionero-card-footer">
-                    <span>${camionAsig ? camionAsig.nombre : 'Sin camion fijo'}</span>
+                    <span>${camionAsigNom}</span>
                     <span>${totalRegistros} viajes evaluados</span>
                 </div>
             </div>`;
@@ -912,17 +1062,17 @@
         c.innerHTML = camiones.map(cam => `
             <div class="camion-card" data-id="${cam.id}" role="button" tabindex="0">
                 <div class="viaje-ruta">
-                    <span>${cam.nombre}</span>
-                    <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${cam.patente || 'SIN PATENTE'}</span>
+                    <span>${escapeHTML(cam.nombre)}</span>
+                    <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${escapeHTML(cam.patente || 'SIN PATENTE')}</span>
                 </div>
-                ${cam.camionero ? `<div class="viaje-meta"><span>Chofer asignado: <strong>${cam.camionero}</strong></span></div>` : ''}
+                ${cam.camionero ? `<div class="viaje-meta"><span>Chofer asignado: <strong>${escapeHTML(cam.camionero)}</strong></span></div>` : ''}
                 <div class="viaje-meta">
-                    <span>Carga max: <strong>${cam.peso} tn</strong></span>
-                    <span>Dimensiones: ${cam.largo}m x ${cam.ancho}m x ${cam.alto}m</span>
+                    <span>Carga max: <strong>${escapeHTML(cam.peso)} tn</strong></span>
+                    <span>Dimensiones: ${escapeHTML(cam.largo)}m x ${escapeHTML(cam.ancho)}m x ${escapeHTML(cam.alto)}m</span>
                 </div>
                 <div class="viaje-meta">
-                    <span>Consumo vacio: ${cam.consumoVacio} L/100km</span>
-                    <span>Consumo cargado: ${cam.consumoLleno} L/100km</span>
+                    <span>Consumo vacio: ${escapeHTML(cam.consumoVacio)} L/100km</span>
+                    <span>Consumo cargado: ${escapeHTML(cam.consumoLleno)} L/100km</span>
                 </div>
                 <button class="camionero-card-delete" data-id="${cam.id}" aria-label="Eliminar">&times;</button>
             </div>
@@ -934,7 +1084,7 @@
         if (!sel) return;
         const prev = sel.value;
         sel.innerHTML = '<option value="">-- Seleccionar camion de flota --</option>' +
-            camiones.map(c => `<option value="${c.id}">${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+            camiones.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
         if (prev && camiones.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
@@ -943,7 +1093,7 @@
         if (!sel) return;
         const prev = sel.value;
         sel.innerHTML = '<option value="">-- Sin chofer asignado --</option>' +
-            camioneros.map(c => `<option value="${c.id}">${c.nombre} (DNI ${c.dni || 'S/D'})</option>`).join('');
+            camioneros.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (DNI ${escapeHTML(c.dni || 'S/D')})</option>`).join('');
         if (prev && camioneros.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
@@ -998,7 +1148,7 @@
         const selCam = document.getElementById('cnr-camion-asignado');
         if (selCam) {
             selCam.innerHTML = '<option value="">-- Sin asignar --</option>' +
-                camiones.map(c => `<option value="${c.id}" ${c.id === cnr?.camionAsignadoId ? 'selected' : ''}>${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+                camiones.map(c => `<option value="${c.id}" ${c.id === cnr?.camionAsignadoId ? 'selected' : ''}>${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
         }
 
         renderCapsTemp();
@@ -1020,7 +1170,7 @@
         }
         lista.innerHTML = capsTemp.map((cap, i) => `
             <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:4px;margin-bottom:4px;font-size:0.8rem">
-                <span><strong>${cap.nombre}</strong> ${cap.fecha ? '· ' + cap.fecha : ''}</span>
+                <span><strong>${escapeHTML(cap.nombre)}</strong> ${cap.fecha ? '· ' + escapeHTML(cap.fecha) : ''}</span>
                 <button type="button" class="cap-item-del" data-cap-idx="${i}" style="background:none;border:none;color:var(--c-danger);cursor:pointer;font-size:1.1rem">&times;</button>
             </div>
         `).join('');
@@ -1048,7 +1198,7 @@
         const historial = [...(cnr.historial || [])].reverse();
         const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
         const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
-        const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const initials = escapeHTML((cnr.nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase());
 
         const cont = document.getElementById('perfil-contenido');
         if (!cont) return;
@@ -1057,18 +1207,18 @@
             <div style="display:flex;align-items:center;gap:1rem;background:var(--c-card);padding:1rem;border-radius:8px;border:1px solid var(--c-border)">
                 ${scoreRingHTML(score)}
                 <div>
-                    <div style="font-size:1.05rem;font-weight:700;color:var(--c-text-title)">${cnr.nombre}</div>
+                    <div style="font-size:1.05rem;font-weight:700;color:var(--c-text-title)">${escapeHTML(cnr.nombre)}</div>
                     <div style="font-size:0.75rem;color:var(--c-text-muted)">Score de cumplimiento: <strong style="color:var(--c-text-title)">${score !== null ? score + '%' : 'Sin evaluar'}</strong> · ${bonos} bono${bonos !== 1 ? 's' : ''}</div>
                 </div>
             </div>
 
             <div class="form-section-label" style="margin-top:1rem">Datos y Licencia</div>
             <div class="detail-rows" style="margin-top:0.5rem">
-                ${cnr.dni ? `<div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val">${cnr.dni}</span></div>` : ''}
-                ${cnr.tel ? `<div class="detail-row"><span class="detail-key">Telefono</span><span class="detail-val">${cnr.tel}</span></div>` : ''}
-                ${cnr.carnetNum ? `<div class="detail-row"><span class="detail-key">N° Licencia</span><span class="detail-val">${cnr.carnetNum} (Cat. ${cnr.carnetCat || 'E'})</span></div>` : ''}
-                ${cnr.carnetVto ? `<div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${cnr.carnetVto}</span></div>` : ''}
-                ${camionAsig ? `<div class="detail-row"><span class="detail-key">Camion</span><span class="detail-val">${camionAsig.nombre}</span></div>` : ''}
+                ${cnr.dni ? `<div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val">${escapeHTML(cnr.dni)}</span></div>` : ''}
+                ${cnr.tel ? `<div class="detail-row"><span class="detail-key">Telefono</span><span class="detail-val">${escapeHTML(cnr.tel)}</span></div>` : ''}
+                ${cnr.carnetNum ? `<div class="detail-row"><span class="detail-key">N° Licencia</span><span class="detail-val">${escapeHTML(cnr.carnetNum)} (Cat. ${escapeHTML(cnr.carnetCat || 'E')})</span></div>` : ''}
+                ${cnr.carnetVto ? `<div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${escapeHTML(cnr.carnetVto)}</span></div>` : ''}
+                ${camionAsig ? `<div class="detail-row"><span class="detail-key">Camion</span><span class="detail-val">${escapeHTML(camionAsig.nombre)}</span></div>` : ''}
             </div>
 
             <div class="form-section-label" style="margin-top:1.25rem">Historial de Despachos (${historial.length})</div>
@@ -1077,8 +1227,9 @@
                     historial.map((r, i) => `
                         <div style="background:var(--c-card);padding:8px 10px;border-radius:6px;border:1px solid var(--c-border);font-size:0.78rem;display:flex;justify-content:space-between;align-items:center">
                             <div>
-                                <strong>${r.fecha}</strong> · Ruta: ${r.ruta === 'si' ? 'Cumplio' : 'Desvio'} · ${r.puntualidad}
+                                <strong>${escapeHTML(r.fecha)}</strong> · Ruta: ${r.ruta === 'si' ? 'Cumplio' : 'Desvio'} · ${escapeHTML(r.puntualidad)}
                                 ${r.bono === 'si' ? ' · <span style="color:#a78bfa;font-weight:700">Bono Asignado</span>' : ''}
+                                ${r.obs ? `<div style="color:var(--c-text-muted);font-size:0.72rem;margin-top:2px">${escapeHTML(r.obs)}</div>` : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -1109,7 +1260,7 @@
                 e.pesoCarga ? ['Peso', `${e.pesoCarga} tn`] : null,
                 ['Distancia Estimada', formatoDistancia(e.distancia)],
                 ['Tiempo Estimado', formatoTiempo(e.tiempo)],
-                e.distancia ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
+                (e.distancia !== null && e.distancia !== undefined) ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
                 ['Estado', e.estado],
                 camion ? ['Camion Asignado', `${camion.nombre} (${camion.patente || 'S/P'})`] : null,
                 camion?.camionero ? ['Chofer', camion.camionero] : null,
@@ -1117,8 +1268,8 @@
                 e.remito ? ['N° Remito Oficial', e.remito] : null
             ].filter(Boolean).map(([k, v]) => `
                 <div class="detail-row">
-                    <span class="detail-key">${k}</span>
-                    <span class="detail-val">${v}</span>
+                    <span class="detail-key">${escapeHTML(k)}</span>
+                    <span class="detail-val">${escapeHTML(v)}</span>
                 </div>
             `).join('');
         }
@@ -1138,7 +1289,7 @@
         const vjSel = document.getElementById('vj-select-camion');
         if (vjSel) {
             vjSel.innerHTML = '<option value="">-- Seleccionar camion --</option>' +
-                camiones.map(c => `<option value="${c.id}">${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+                camiones.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
             vjSel.value = envioExistente?.camionId || (rutaPendiente?.camionId || '');
         }
 
@@ -1157,7 +1308,11 @@
 
     function cerrarModalViaje() {
         document.getElementById('modal-viaje')?.classList.add('hidden');
+        idEnvioEditando = null;
         rutaPendiente = null;
+        if (mapaInline) {
+            actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+        }
     }
 
     function iniciarEdicion(id) {
@@ -1182,12 +1337,16 @@
 
     function cancelarEdicion() {
         idEnvioEditando = null;
+        rutaPendiente = null;
         document.getElementById('form-envio')?.reset();
         document.getElementById('form-titulo').textContent = 'Nueva Ruta de Transporte';
         document.getElementById('btn-submit-texto').textContent = 'Calcular Ruta y Emitir';
         document.getElementById('btn-cancelar-edicion').classList.add('hidden');
         document.getElementById('resultado-ruta')?.classList.add('hidden');
         renderSelectCamiones();
+        if (mapaInline) {
+            actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1235,7 +1394,14 @@
 
                 // Dibujar en mapa inline
                 if (mapaInline) {
-                    actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+                    const viajeTemporal = {
+                        id: idEnvioEditando || 'preview',
+                        origen,
+                        destino,
+                        estado,
+                        ...dataRuta
+                    };
+                    actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false, viajeTemporal);
                 }
 
                 if (idEnvioEditando === null) {
@@ -1248,8 +1414,13 @@
                 } else {
                     const idx = envios.findIndex(x => x.id === idEnvioEditando);
                     if (idx !== -1) {
-                        envios[idx] = { ...envios[idx], origen, destino, producto, pesoCarga, estado, camionId, ...dataRuta };
-                        abrirModalViaje(envios[idx]);
+                        rutaPendiente = {
+                            ...envios[idx],
+                            origen, destino, producto, pesoCarga, estado, camionId,
+                            ...dataRuta,
+                            esEdicion: true
+                        };
+                        abrirModalViaje(rutaPendiente);
                     }
                 }
 
@@ -1265,9 +1436,13 @@
         document.getElementById('btn-cancelar-edicion')?.addEventListener('click', cancelarEdicion);
         document.getElementById('btn-ver-mapa-resultado')?.addEventListener('click', () => irATab('mapa'));
 
-        // POIs
-        document.getElementById('btn-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina'));
-        document.getElementById('btn-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida'));
+        // POIs Mapa Full
+        document.getElementById('btn-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina', 'full'));
+        document.getElementById('btn-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida', 'full'));
+
+        // POIs Mapa Inline
+        document.getElementById('btn-inline-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina', 'inline'));
+        document.getElementById('btn-inline-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida', 'inline'));
 
         // Navegacion
         document.querySelectorAll('.nav-btn, .sidebar-btn').forEach(btn => {
@@ -1289,15 +1464,48 @@
             const id = Number(card.dataset.id);
             const btnDel = e.target.closest('.camionero-card-delete');
             if (btnDel) {
+                if (!confirm('¿Seguro que deseas eliminar este camion de la flota?')) return;
+
+                const camion = camiones.find(c => c.id === id);
+
+                // Desvincular en cascada y guardar snapshot historico
+                envios.forEach(e => {
+                    if (e.camionId === id) {
+                        if (camion) {
+                            e.camionNombre = camion.nombre;
+                            e.camionPatente = camion.patente;
+                        }
+                        e.camionId = null;
+                    }
+                });
+                camioneros.forEach(cnr => {
+                    if (cnr.camionAsignadoId === id) cnr.camionAsignadoId = null;
+                });
+
                 camiones = camiones.filter(c => c.id !== id);
                 guardar();
+                actualizarKPIs();
                 renderListaCamiones();
                 renderSelectCamiones();
+                renderListaCamioneros();
+                renderListaViajes();
                 showToast('Camion eliminado.', 'info');
                 return;
             }
             const camion = camiones.find(c => c.id === id);
             if (camion) abrirModalCamion(camion);
+        });
+
+        document.getElementById('lista-camiones')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.camion-card');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    const id = Number(card.dataset.id);
+                    const camion = camiones.find(c => c.id === id);
+                    if (camion) abrirModalCamion(camion);
+                }
+            }
         });
 
         document.getElementById('form-camion')?.addEventListener('submit', e => {
@@ -1400,15 +1608,39 @@
         document.getElementById('lista-camioneros')?.addEventListener('click', e => {
             const delBtn = e.target.closest('.camionero-card-delete');
             if (delBtn) {
+                if (!confirm('¿Seguro que deseas eliminar este chofer?')) return;
+
                 const id = Number(delBtn.dataset.id);
+
+                // Desvincular de camiones
+                camiones.forEach(cam => {
+                    if (cam.camioneroId === id) {
+                        cam.camioneroId = null;
+                        cam.camionero = '';
+                    }
+                });
+
                 camioneros = camioneros.filter(c => c.id !== id);
                 guardar();
+                actualizarKPIs();
                 renderListaCamioneros();
+                renderListaCamiones();
+                renderSelectCamioneros();
                 showToast('Chofer eliminado.', 'info');
                 return;
             }
             const card = e.target.closest('.camionero-card');
             if (card) abrirPerfilCamionero(Number(card.dataset.id));
+        });
+
+        document.getElementById('lista-camioneros')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.camionero-card');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    abrirPerfilCamionero(Number(card.dataset.id));
+                }
+            }
         });
 
         document.getElementById('btn-cerrar-perfil')?.addEventListener('click', cerrarPerfilCamionero);
@@ -1469,11 +1701,24 @@
 
             if (idEnvioEditando !== null) {
                 const idx = envios.findIndex(x => x.id === idEnvioEditando);
-                if (idx !== -1) envios[idx] = { ...envios[idx], ...datosExtra };
+                if (idx !== -1) {
+                    const datosActualizados = rutaPendiente
+                        ? { ...rutaPendiente, ...datosExtra }
+                        : { ...envios[idx], ...datosExtra };
+                    delete datosActualizados.esEdicion;
+                    if (datosActualizados.coordsRuta) {
+                        datosActualizados.coordsRuta = comprimirCoords(datosActualizados.coordsRuta);
+                    }
+                    envios[idx] = datosActualizados;
+                }
                 showToast('Despacho actualizado.', 'success');
                 cancelarEdicion();
             } else if (rutaPendiente) {
                 const nuevo = { id: contadorId++, ...rutaPendiente, ...datosExtra };
+                delete nuevo.esEdicion;
+                if (nuevo.coordsRuta) {
+                    nuevo.coordsRuta = comprimirCoords(nuevo.coordsRuta);
+                }
                 envios.push(nuevo);
                 showToast('Remito y ruta emitidos con exito.', 'success');
                 document.getElementById('form-envio')?.reset();
@@ -1489,12 +1734,22 @@
         document.getElementById('lista-viajes')?.addEventListener('click', e => {
             const dlBtn = e.target.closest('.btn-download');
             if (dlBtn) {
-                e.stopPropagation();
+                e.preventDefault();
                 generarComprobante(Number(dlBtn.dataset.id));
                 return;
             }
             const card = e.target.closest('.viaje-card-v2');
             if (card) abrirDetalle(Number(card.dataset.id));
+        });
+
+        document.getElementById('lista-viajes')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.viaje-card-v2');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    abrirDetalle(Number(card.dataset.id));
+                }
+            }
         });
 
         document.getElementById('btn-cerrar-detalle')?.addEventListener('click', cerrarDetalle);
@@ -1576,7 +1831,23 @@
         const now = new Date();
         const fecha = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const hora = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-        const numRemito = e.remito || `R-0001-${String(e.id).padStart(8, '0')}`;
+        const rawNumRemito = e.remito || `R-0001-${String(e.id).padStart(8, '0')}`;
+        const numRemito = escapeHTML(rawNumRemito);
+
+        const origenSafe = escapeHTML(e.origen);
+        const destinoSafe = escapeHTML(e.destino);
+        const clienteSafe = escapeHTML(e.cliente || 'Consignatario en Destino');
+        const estadoSafe = escapeHTML(e.estado);
+        const productoSafe = escapeHTML(e.producto || 'Mercaderia General');
+        const pesoSafe = escapeHTML(e.pesoCarga ? e.pesoCarga + ' Toneladas' : 'Carga Estandar');
+        const camionSafe = camion 
+            ? `${escapeHTML(camion.nombre)} · Patente ${escapeHTML(camion.patente || 'S/P')}` 
+            : (e.camionNombre 
+                ? `${escapeHTML(e.camionNombre)} · Patente ${escapeHTML(e.camionPatente || 'S/P')}` 
+                : 'Unidad de Flota TerMate');
+        const choferSafe = chofer
+            ? `${escapeHTML(chofer.nombre)} (DNI ${escapeHTML(chofer.dni || '—')} · Lic. ${escapeHTML(chofer.carnetCat || 'E')})`
+            : escapeHTML(camion?.camionero || 'Chofer Designado');
 
         const html = `<!DOCTYPE html>
 <html lang="es">
@@ -1628,21 +1899,21 @@
   <div class="grid-2">
     <div class="data-group">
       <span class="data-label">Punto de Origen (Carga)</span>
-      <span class="data-val">${e.origen}</span>
+      <span class="data-val">${origenSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Punto de Destino (Descarga)</span>
-      <span class="data-val">${e.destino}</span>
+      <span class="data-val">${destinoSafe}</span>
     </div>
   </div>
   <div class="grid-2" style="margin-top:0.75rem">
     <div class="data-group">
       <span class="data-label">Cliente / Receptor</span>
-      <span class="data-val">${e.cliente || 'Consignatario en Destino'}</span>
+      <span class="data-val">${clienteSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Estado de Carga</span>
-      <span class="data-val">${e.estado}</span>
+      <span class="data-val">${estadoSafe}</span>
     </div>
   </div>
 
@@ -1651,11 +1922,11 @@
     <div class="grid-2">
       <div class="data-group">
         <span class="data-label">Descripcion de Carga</span>
-        <span class="data-val">${e.producto || 'Mercaderia General'}</span>
+        <span class="data-val">${productoSafe}</span>
       </div>
       <div class="data-group">
         <span class="data-label">Peso Declarado</span>
-        <span class="data-val">${e.pesoCarga ? e.pesoCarga + ' Toneladas' : 'Carga Estandar'}</span>
+        <span class="data-val">${pesoSafe}</span>
       </div>
     </div>
     <div class="grid-2" style="margin-top:0.6rem">
@@ -1674,11 +1945,11 @@
   <div class="grid-2">
     <div class="data-group">
       <span class="data-label">Camion Asignado</span>
-      <span class="data-val">${camion ? camion.nombre + ' · Patente ' + (camion.patente || 'S/P') : 'Unidad de Flota TerMate'}</span>
+      <span class="data-val">${camionSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Chofer Conductor</span>
-      <span class="data-val">${chofer ? chofer.nombre + ' (DNI ' + (chofer.dni || '—') + ' · Lic. ' + (chofer.carnetCat || 'E') + ')' : (camion?.camionero || 'Chofer Designado')}</span>
+      <span class="data-val">${choferSafe}</span>
     </div>
   </div>
 
@@ -1700,14 +1971,38 @@
 
         const win = window.open('', '_blank');
         if (win) {
+            win.opener = null;
             win.document.write(html);
             win.document.close();
+            try {
+                win.print();
+            } catch {}
         }
     }
 
     // ═══════════════════════════════════════════════════════════
     // 13. UTILIDADES
     // ═══════════════════════════════════════════════════════════
+    function escapeHTML(val) {
+        if (val === null || val === undefined) return '';
+        let str = '';
+        if (typeof val === 'object') {
+            try {
+                str = val.toString ? val.toString() : Object.prototype.toString.call(val);
+            } catch {
+                str = '[object Object]';
+            }
+        } else {
+            str = String(val);
+        }
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function haversine(c1, c2) {
         const R = 6371;
         const dLat = (c2[0] - c1[0]) * Math.PI / 180;
@@ -1717,12 +2012,12 @@
     }
 
     function formatoDistancia(km) {
-        if (!km || isNaN(km)) return '—';
+        if (km === null || km === undefined || isNaN(km)) return '—';
         return km >= 1000 ? `${(km/1000).toFixed(1).replace('.', ',')} mil km` : `${Math.round(km)} km`;
     }
 
     function formatoTiempo(h) {
-        if (!h || isNaN(h)) return '—';
+        if (h === null || h === undefined || isNaN(h)) return '—';
         if (h < 1) return `${Math.round(h * 60)} min`;
         const hh = Math.floor(h);
         const mm = Math.round((h - hh) * 60);
@@ -1730,8 +2025,10 @@
     }
 
     function formatoFuel(km, pesoCarga = 0, camionId = null) {
+        if (km === null || km === undefined || isNaN(km)) return null;
+        if (km === 0) return '0 L';
         const camion = camionId ? camiones.find(c => c.id === camionId) : camiones[0];
-        if (!camion || !km || !camion.consumoVacio || !camion.consumoLleno) return null;
+        if (!camion || !camion.consumoVacio || !camion.consumoLleno) return null;
         const capMax = camion.peso || 1;
         const cargaRatio = Math.min(1, Math.max(0, (pesoCarga || 0) / capMax));
         const consumoPor100km = camion.consumoVacio + (camion.consumoLleno - camion.consumoVacio) * cargaRatio;

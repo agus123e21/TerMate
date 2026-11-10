@@ -1,8 +1,8 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v2';
-const TILE_CACHE = 'termate-tiles-v1';
+const CACHE_NAME = 'termate-v4';
+const TILE_CACHE = 'termate-tiles-v2';
 const API_CACHE = 'termate-api-v1';
 
 // Recursos core que se cachean en la instalación
@@ -17,12 +17,18 @@ const CORE_ASSETS = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 ];
 
-// Instalación: precachear recursos core
+// Instalación: precachear recursos core con tolerancia a fallos
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CORE_ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const asset of CORE_ASSETS) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn('[SW] Fallo precache:', asset);
+        }
+      }
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -43,27 +49,57 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // 1. Tiles del mapa (CartoDB / OSM) → Cache First, luego red
+  // Bypass de caché para desarrollo local (evitar cache lock en equipo de desarrollo)
+  const isDevHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (isDevHost && (
+    url.origin === self.location.origin ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    event.request.destination === 'document' ||
+    event.request.destination === 'script' ||
+    event.request.destination === 'style'
+  )) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 1. Tiles del mapa (CartoDB / OSM / ArcGIS) → Cache First, luego red
   if (
     url.hostname.includes('basemaps.cartocdn.com') ||
-    url.hostname.includes('tile.openstreetmap.org')
+    url.hostname.includes('tile.openstreetmap.org') ||
+    url.hostname.includes('server.arcgisonline.com')
   ) {
     event.respondWith(cacheThenNetwork(event.request, TILE_CACHE));
     return;
   }
 
-  // 2. APIs de georeferencia argentina y SerpApi → Network First, fallback cache
+  // 2. APIs de georeferencia argentina, SerpApi y OSRM → Network First, fallback cache
   if (
     url.hostname.includes('apis.datos.gob.ar') ||
     url.hostname.includes('api.openrouteservice.org') ||
     url.hostname.includes('nominatim.openstreetmap.org') ||
+    url.hostname.includes('router.project-osrm.org') ||
     url.hostname.includes('serpapi.com')
   ) {
     event.respondWith(networkThenCache(event.request, API_CACHE));
     return;
   }
 
-  // 3. Recursos core → Cache First
+  // 3. Recursos del mismo origen clave (app.js, styles.css, index.html) → Network First
+  if (
+    url.hostname === self.location.hostname &&
+    (url.pathname === '/' ||
+     url.pathname.endsWith('/index.html') ||
+     url.pathname.endsWith('/styles.css') ||
+     url.pathname.endsWith('/app.js'))
+  ) {
+    event.respondWith(networkThenCache(event.request, CACHE_NAME));
+    return;
+  }
+
+  // 4. Recursos core y estáticos restantes → Cache First
   if (
     url.hostname === self.location.hostname ||
     url.hostname.includes('fonts.googleapis.com') ||
@@ -78,7 +114,7 @@ self.addEventListener('fetch', event => {
 // Cache First (ideal para tiles estáticos)
 async function cacheThenNetwork(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(request));
   if (cached) return cached;
 
   try {
@@ -97,7 +133,7 @@ async function cacheThenNetwork(request, cacheName) {
   }
 }
 
-// Network First (ideal para APIs que cambian)
+// Network First (ideal para APIs que cambian y recursos locales en desarrollo)
 async function networkThenCache(request, cacheName) {
   const cache = await caches.open(cacheName);
   try {
@@ -105,7 +141,7 @@ async function networkThenCache(request, cacheName) {
     if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {
-    const cached = await cache.match(request);
+    const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(request));
     if (cached) return cached;
     return new Response(JSON.stringify({ error: 'sin_conexion' }), {
       headers: { 'Content-Type': 'application/json' },

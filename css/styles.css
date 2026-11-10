@@ -428,6 +428,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
     z-index: var(--z-map-overlays);
 }
 
@@ -438,6 +440,51 @@ html, body {
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--c-text-title);
+    flex-shrink: 0;
+}
+
+.map-inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.inline-layer-btn, .inline-poi-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: var(--c-text-muted);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.70rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--t-fast);
+}
+
+.inline-layer-btn:hover, .inline-poi-btn:hover {
+    color: var(--c-text-title);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.inline-layer-btn.active {
+    background: var(--c-primary-light);
+    color: #060911;
+}
+
+.inline-poi-btn.active[data-poi="gasolina"] {
+    background: rgba(16, 185, 129, 0.25);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.inline-poi-btn.active[data-poi="comida"] {
+    background: rgba(245, 158, 11, 0.25);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
 .pulse-dot {
@@ -945,6 +992,13 @@ select.field-input {
     box-shadow: var(--shadow-md);
 }
 
+.viaje-card-v2:focus-visible,
+.camion-card:focus-visible,
+.camionero-card:focus-visible {
+    outline: 2px solid var(--c-primary, #3b82f6);
+    outline-offset: 2px;
+}
+
 .vc2-estado-bar {
     display: flex;
     align-items: center;
@@ -1091,8 +1145,11 @@ select.field-input {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    width: 32px;
-    height: 32px;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     border-radius: var(--r-sm);
     background: var(--c-card);
     border: 1px solid var(--c-border);
@@ -1116,6 +1173,13 @@ select.field-input {
     height: 100%;
     background-color: #060911;
     z-index: var(--z-map-pane);
+}
+
+/* Mosaicos de OpenStreetMap por defecto (visualización nativa limpia sin filtros) */
+.map-tiles-dark,
+.leaflet-tile.map-tiles-dark,
+.map-tiles-dark .leaflet-tile {
+    filter: none;
 }
 
 .map-overlay-header {

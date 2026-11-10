@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=4.1.0">
 </head>
 <body>
 
@@ -250,7 +250,28 @@
                         <span class="pulse-dot"></span>
                         <span>Vista Previa de Ruta</span>
                     </div>
-                    <span class="map-inline-tip">Doble clic sobre el marcador para reubicarlo</span>
+                    <div class="map-inline-controls">
+                        <div class="map-layer-selector" aria-label="Capas del mapa previo">
+                            <button type="button" class="inline-layer-btn active" data-layer="streets" title="Vista Callejera (OSM)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                                <span>Calles</span>
+                            </button>
+                            <button type="button" class="inline-layer-btn" data-layer="satellite" title="Vista Satelital (ArcGIS)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                                <span>Satelital</span>
+                            </button>
+                        </div>
+                        <div class="map-poi-selector" aria-label="Puntos de interés">
+                            <button type="button" id="btn-inline-poi-combustible" class="inline-poi-btn" data-poi="gasolina" title="Estaciones de Servicio">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/><path d="M14 22V14a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v8"/><line x1="18" y1="12" x2="18" y2="7"/></svg>
+                                <span>Estaciones</span>
+                            </button>
+                            <button type="button" id="btn-inline-poi-comida" class="inline-poi-btn" data-poi="comida" title="Paradores y Descansos">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                                <span>Paradores</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div id="mapa-inline" class="map-inline" aria-label="Vista previa de ruta"></div>
             </div>
@@ -300,15 +321,11 @@
             </div>
 
             <div class="map-layer-selector">
-                <button type="button" class="map-layer-btn active" data-layer="dark" title="Vista Oscura">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                    <span>Dark</span>
-                </button>
-                <button type="button" class="map-layer-btn" data-layer="streets" title="Vista Callejera">
+                <button type="button" class="map-layer-btn active" data-layer="streets" title="Vista Callejera (OSM)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
                     <span>Calles</span>
                 </button>
-                <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital">
+                <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital (ArcGIS)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     <span>Satelital</span>
                 </button>
@@ -730,6 +747,6 @@
 <div id="toast-container" role="status" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/app.js"></script>
+<script src="js/app.js?v=4.1.0"></script>
 </body>
 </html>

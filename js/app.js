@@ -785,12 +785,12 @@
                 if (sugs.length === 0) { lista.classList.remove('visible'); return; }
 
                 lista.innerHTML = sugs.map(s => `
-                    <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${s.completo}">
+                    <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${escapeHTML(s.completo)}">
                         <div class="sug-main-row">
-                            <span class="sug-principal">${s.principal}</span>
+                            <span class="sug-principal">${escapeHTML(s.principal)}</span>
                         </div>
                         <div class="sug-sub-row">
-                            <span class="sug-secundario">${s.secundario}</span>
+                            <span class="sug-secundario">${escapeHTML(s.secundario)}</span>
                         </div>
                     </li>
                 `).join('');
@@ -904,20 +904,23 @@
             const score = calcularScore(cnr);
             const vtoClass = carnetVtoClass(cnr.carnetVto);
             const vtoLabel = cnr.carnetVto
-                ? (vtoClass === 'vto-exp' ? 'Licencia Vencida' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${cnr.carnetCat || 'E'} (Vigente)`)
-                : (cnr.carnetCat ? `Cat. ${cnr.carnetCat}` : 'Sin Licencia');
+                ? (vtoClass === 'vto-exp' ? 'Licencia Vencida' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${escapeHTML(cnr.carnetCat || 'E')} (Vigente)`)
+                : (cnr.carnetCat ? `Cat. ${escapeHTML(cnr.carnetCat)}` : 'Sin Licencia');
             const totalRegistros = (cnr.historial || []).length;
             const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
             const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
-            const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const initials = escapeHTML((cnr.nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase());
+            const nombreEsc = escapeHTML(cnr.nombre);
+            const dniEsc = cnr.dni ? 'DNI ' + escapeHTML(cnr.dni) : (cnr.tel ? escapeHTML(cnr.tel) : 'Sin contacto');
+            const camionAsigNom = camionAsig ? escapeHTML(camionAsig.nombre) : 'Sin camion fijo';
 
             return `<div class="camionero-card" data-id="${cnr.id}" role="button" tabindex="0">
                 <button class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar">&times;</button>
                 <div class="camionero-card-header">
                     <div class="camionero-avatar">${initials}</div>
                     <div class="camionero-info">
-                        <div class="camionero-nombre">${cnr.nombre}</div>
-                        <div class="camionero-dni">${cnr.dni ? 'DNI ' + cnr.dni : (cnr.tel || 'Sin contacto')}</div>
+                        <div class="camionero-nombre">${nombreEsc}</div>
+                        <div class="camionero-dni">${dniEsc}</div>
                     </div>
                     ${scoreRingHTML(score)}
                 </div>
@@ -927,7 +930,7 @@
                     ${bonos > 0 ? `<span class="cnr-badge cnr-badge--bono">${bonos} Bono${bonos > 1 ? 's' : ''}</span>` : ''}
                 </div>
                 <div class="camionero-card-footer">
-                    <span>${camionAsig ? camionAsig.nombre : 'Sin camion fijo'}</span>
+                    <span>${camionAsigNom}</span>
                     <span>${totalRegistros} viajes evaluados</span>
                 </div>
             </div>`;
@@ -946,17 +949,17 @@
         c.innerHTML = camiones.map(cam => `
             <div class="camion-card" data-id="${cam.id}" role="button" tabindex="0">
                 <div class="viaje-ruta">
-                    <span>${cam.nombre}</span>
-                    <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${cam.patente || 'SIN PATENTE'}</span>
+                    <span>${escapeHTML(cam.nombre)}</span>
+                    <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${escapeHTML(cam.patente || 'SIN PATENTE')}</span>
                 </div>
-                ${cam.camionero ? `<div class="viaje-meta"><span>Chofer asignado: <strong>${cam.camionero}</strong></span></div>` : ''}
+                ${cam.camionero ? `<div class="viaje-meta"><span>Chofer asignado: <strong>${escapeHTML(cam.camionero)}</strong></span></div>` : ''}
                 <div class="viaje-meta">
-                    <span>Carga max: <strong>${cam.peso} tn</strong></span>
-                    <span>Dimensiones: ${cam.largo}m x ${cam.ancho}m x ${cam.alto}m</span>
+                    <span>Carga max: <strong>${escapeHTML(cam.peso)} tn</strong></span>
+                    <span>Dimensiones: ${escapeHTML(cam.largo)}m x ${escapeHTML(cam.ancho)}m x ${escapeHTML(cam.alto)}m</span>
                 </div>
                 <div class="viaje-meta">
-                    <span>Consumo vacio: ${cam.consumoVacio} L/100km</span>
-                    <span>Consumo cargado: ${cam.consumoLleno} L/100km</span>
+                    <span>Consumo vacio: ${escapeHTML(cam.consumoVacio)} L/100km</span>
+                    <span>Consumo cargado: ${escapeHTML(cam.consumoLleno)} L/100km</span>
                 </div>
                 <button class="camionero-card-delete" data-id="${cam.id}" aria-label="Eliminar">&times;</button>
             </div>
@@ -968,7 +971,7 @@
         if (!sel) return;
         const prev = sel.value;
         sel.innerHTML = '<option value="">-- Seleccionar camion de flota --</option>' +
-            camiones.map(c => `<option value="${c.id}">${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+            camiones.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
         if (prev && camiones.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
@@ -977,7 +980,7 @@
         if (!sel) return;
         const prev = sel.value;
         sel.innerHTML = '<option value="">-- Sin chofer asignado --</option>' +
-            camioneros.map(c => `<option value="${c.id}">${c.nombre} (DNI ${c.dni || 'S/D'})</option>`).join('');
+            camioneros.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (DNI ${escapeHTML(c.dni || 'S/D')})</option>`).join('');
         if (prev && camioneros.some(c => c.id === parseInt(prev))) sel.value = prev;
     }
 
@@ -1032,7 +1035,7 @@
         const selCam = document.getElementById('cnr-camion-asignado');
         if (selCam) {
             selCam.innerHTML = '<option value="">-- Sin asignar --</option>' +
-                camiones.map(c => `<option value="${c.id}" ${c.id === cnr?.camionAsignadoId ? 'selected' : ''}>${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+                camiones.map(c => `<option value="${c.id}" ${c.id === cnr?.camionAsignadoId ? 'selected' : ''}>${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
         }
 
         renderCapsTemp();
@@ -1054,7 +1057,7 @@
         }
         lista.innerHTML = capsTemp.map((cap, i) => `
             <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:4px;margin-bottom:4px;font-size:0.8rem">
-                <span><strong>${cap.nombre}</strong> ${cap.fecha ? '· ' + cap.fecha : ''}</span>
+                <span><strong>${escapeHTML(cap.nombre)}</strong> ${cap.fecha ? '· ' + escapeHTML(cap.fecha) : ''}</span>
                 <button type="button" class="cap-item-del" data-cap-idx="${i}" style="background:none;border:none;color:var(--c-danger);cursor:pointer;font-size:1.1rem">&times;</button>
             </div>
         `).join('');
@@ -1082,7 +1085,7 @@
         const historial = [...(cnr.historial || [])].reverse();
         const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
         const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
-        const initials = cnr.nombre.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const initials = escapeHTML((cnr.nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase());
 
         const cont = document.getElementById('perfil-contenido');
         if (!cont) return;
@@ -1091,18 +1094,18 @@
             <div style="display:flex;align-items:center;gap:1rem;background:var(--c-card);padding:1rem;border-radius:8px;border:1px solid var(--c-border)">
                 ${scoreRingHTML(score)}
                 <div>
-                    <div style="font-size:1.05rem;font-weight:700;color:var(--c-text-title)">${cnr.nombre}</div>
+                    <div style="font-size:1.05rem;font-weight:700;color:var(--c-text-title)">${escapeHTML(cnr.nombre)}</div>
                     <div style="font-size:0.75rem;color:var(--c-text-muted)">Score de cumplimiento: <strong style="color:var(--c-text-title)">${score !== null ? score + '%' : 'Sin evaluar'}</strong> · ${bonos} bono${bonos !== 1 ? 's' : ''}</div>
                 </div>
             </div>
 
             <div class="form-section-label" style="margin-top:1rem">Datos y Licencia</div>
             <div class="detail-rows" style="margin-top:0.5rem">
-                ${cnr.dni ? `<div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val">${cnr.dni}</span></div>` : ''}
-                ${cnr.tel ? `<div class="detail-row"><span class="detail-key">Telefono</span><span class="detail-val">${cnr.tel}</span></div>` : ''}
-                ${cnr.carnetNum ? `<div class="detail-row"><span class="detail-key">N° Licencia</span><span class="detail-val">${cnr.carnetNum} (Cat. ${cnr.carnetCat || 'E'})</span></div>` : ''}
-                ${cnr.carnetVto ? `<div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${cnr.carnetVto}</span></div>` : ''}
-                ${camionAsig ? `<div class="detail-row"><span class="detail-key">Camion</span><span class="detail-val">${camionAsig.nombre}</span></div>` : ''}
+                ${cnr.dni ? `<div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val">${escapeHTML(cnr.dni)}</span></div>` : ''}
+                ${cnr.tel ? `<div class="detail-row"><span class="detail-key">Telefono</span><span class="detail-val">${escapeHTML(cnr.tel)}</span></div>` : ''}
+                ${cnr.carnetNum ? `<div class="detail-row"><span class="detail-key">N° Licencia</span><span class="detail-val">${escapeHTML(cnr.carnetNum)} (Cat. ${escapeHTML(cnr.carnetCat || 'E')})</span></div>` : ''}
+                ${cnr.carnetVto ? `<div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${escapeHTML(cnr.carnetVto)}</span></div>` : ''}
+                ${camionAsig ? `<div class="detail-row"><span class="detail-key">Camion</span><span class="detail-val">${escapeHTML(camionAsig.nombre)}</span></div>` : ''}
             </div>
 
             <div class="form-section-label" style="margin-top:1.25rem">Historial de Despachos (${historial.length})</div>
@@ -1111,8 +1114,9 @@
                     historial.map((r, i) => `
                         <div style="background:var(--c-card);padding:8px 10px;border-radius:6px;border:1px solid var(--c-border);font-size:0.78rem;display:flex;justify-content:space-between;align-items:center">
                             <div>
-                                <strong>${r.fecha}</strong> · Ruta: ${r.ruta === 'si' ? 'Cumplio' : 'Desvio'} · ${r.puntualidad}
+                                <strong>${escapeHTML(r.fecha)}</strong> · Ruta: ${r.ruta === 'si' ? 'Cumplio' : 'Desvio'} · ${escapeHTML(r.puntualidad)}
                                 ${r.bono === 'si' ? ' · <span style="color:#a78bfa;font-weight:700">Bono Asignado</span>' : ''}
+                                ${r.obs ? `<div style="color:var(--c-text-muted);font-size:0.72rem;margin-top:2px">${escapeHTML(r.obs)}</div>` : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -1151,8 +1155,8 @@
                 e.remito ? ['N° Remito Oficial', e.remito] : null
             ].filter(Boolean).map(([k, v]) => `
                 <div class="detail-row">
-                    <span class="detail-key">${k}</span>
-                    <span class="detail-val">${v}</span>
+                    <span class="detail-key">${escapeHTML(k)}</span>
+                    <span class="detail-val">${escapeHTML(v)}</span>
                 </div>
             `).join('');
         }
@@ -1172,7 +1176,7 @@
         const vjSel = document.getElementById('vj-select-camion');
         if (vjSel) {
             vjSel.innerHTML = '<option value="">-- Seleccionar camion --</option>' +
-                camiones.map(c => `<option value="${c.id}">${c.nombre} (${c.patente || 'S/P'})</option>`).join('');
+                camiones.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
             vjSel.value = envioExistente?.camionId || (rutaPendiente?.camionId || '');
         }
 
@@ -1767,9 +1771,19 @@
     // ═══════════════════════════════════════════════════════════
     // 13. UTILIDADES
     // ═══════════════════════════════════════════════════════════
-    function escapeHTML(str) {
-        if (str === null || str === undefined) return '';
-        return String(str)
+    function escapeHTML(val) {
+        if (val === null || val === undefined) return '';
+        let str = '';
+        if (typeof val === 'object') {
+            try {
+                str = val.toString ? val.toString() : Object.prototype.toString.call(val);
+            } catch {
+                str = '[object Object]';
+            }
+        } else {
+            str = String(val);
+        }
+        return str
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')

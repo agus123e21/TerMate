@@ -184,7 +184,7 @@
         { nombre: 'Parana, Entre Rios', lat: -31.7333, lon: -60.5333 }
     ];
 
-    async function buscarSugerenciasFederales(query) {
+    async function buscarSugerenciasFederales(query, signal = null) {
         if (!query || query.length < 2) return [];
 
         if (navigator.onLine) {
@@ -196,9 +196,13 @@
                     countrycodes: 'ar',
                     addressdetails: 1
                 });
+                const timeoutSignal = AbortSignal.timeout(3500);
+                const fetchSignal = signal
+                    ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeoutSignal]) : signal)
+                    : timeoutSignal;
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
                     headers: { 'User-Agent': 'TerMateLogistics/3.0' },
-                    signal: AbortSignal.timeout(3500)
+                    signal: fetchSignal
                 });
                 if (res.ok) {
                     const data = await res.json();
@@ -223,7 +227,9 @@
                         });
                     }
                 }
-            } catch {}
+            } catch (err) {
+                if (err.name === 'AbortError') throw err;
+            }
         }
 
         // Fallback local instantaneo
@@ -782,27 +788,41 @@
         if (!input || !lista) return;
 
         let delay = null;
+        let abortCtrl = null;
 
         input.addEventListener('input', () => {
             clearTimeout(delay);
+            if (abortCtrl) {
+                abortCtrl.abort();
+                abortCtrl = null;
+            }
+
             const q = input.value.trim();
             if (q.length < 2) { lista.classList.remove('visible'); return; }
 
             delay = setTimeout(async () => {
-                const sugs = await buscarSugerenciasFederales(q);
-                if (sugs.length === 0) { lista.classList.remove('visible'); return; }
+                abortCtrl = new AbortController();
+                const signal = abortCtrl.signal;
 
-                lista.innerHTML = sugs.map(s => `
-                    <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${escapeHTML(s.completo)}">
-                        <div class="sug-main-row">
-                            <span class="sug-principal">${escapeHTML(s.principal)}</span>
-                        </div>
-                        <div class="sug-sub-row">
-                            <span class="sug-secundario">${escapeHTML(s.secundario)}</span>
-                        </div>
-                    </li>
-                `).join('');
-                lista.classList.add('visible');
+                try {
+                    const sugs = await buscarSugerenciasFederales(q, signal);
+                    if (signal.aborted || input.value.trim() !== q) return;
+                    if (sugs.length === 0) { lista.classList.remove('visible'); return; }
+
+                    lista.innerHTML = sugs.map(s => `
+                        <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${escapeHTML(s.completo)}">
+                            <div class="sug-main-row">
+                                <span class="sug-principal">${escapeHTML(s.principal)}</span>
+                            </div>
+                            <div class="sug-sub-row">
+                                <span class="sug-secundario">${escapeHTML(s.secundario)}</span>
+                            </div>
+                        </li>
+                    `).join('');
+                    lista.classList.add('visible');
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                }
             }, 250);
         });
 
@@ -1827,12 +1847,12 @@
     }
 
     function formatoDistancia(km) {
-        if (!km || isNaN(km)) return '—';
+        if (km === null || km === undefined || isNaN(km)) return '—';
         return km >= 1000 ? `${(km/1000).toFixed(1).replace('.', ',')} mil km` : `${Math.round(km)} km`;
     }
 
     function formatoTiempo(h) {
-        if (!h || isNaN(h)) return '—';
+        if (h === null || h === undefined || isNaN(h)) return '—';
         if (h < 1) return `${Math.round(h * 60)} min`;
         const hh = Math.floor(h);
         const mm = Math.round((h - hh) * 60);

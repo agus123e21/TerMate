@@ -1374,10 +1374,23 @@
             const id = Number(card.dataset.id);
             const btnDel = e.target.closest('.camionero-card-delete');
             if (btnDel) {
+                if (!confirm('¿Seguro que deseas eliminar este camion de la flota?')) return;
+
+                // Desvincular en cascada
+                envios.forEach(env => {
+                    if (env.camionId === id) env.camionId = null;
+                });
+                camioneros.forEach(cnr => {
+                    if (cnr.camionAsignadoId === id) cnr.camionAsignadoId = null;
+                });
+
                 camiones = camiones.filter(c => c.id !== id);
                 guardar();
+                actualizarKPIs();
                 renderListaCamiones();
                 renderSelectCamiones();
+                renderListaCamioneros();
+                renderListaViajes();
                 showToast('Camion eliminado.', 'info');
                 return;
             }
@@ -1485,10 +1498,24 @@
         document.getElementById('lista-camioneros')?.addEventListener('click', e => {
             const delBtn = e.target.closest('.camionero-card-delete');
             if (delBtn) {
+                if (!confirm('¿Seguro que deseas eliminar este chofer?')) return;
+
                 const id = Number(delBtn.dataset.id);
+
+                // Desvincular de camiones
+                camiones.forEach(cam => {
+                    if (cam.camioneroId === id) {
+                        cam.camioneroId = null;
+                        cam.camionero = '';
+                    }
+                });
+
                 camioneros = camioneros.filter(c => c.id !== id);
                 guardar();
+                actualizarKPIs();
                 renderListaCamioneros();
+                renderListaCamiones();
+                renderSelectCamioneros();
                 showToast('Chofer eliminado.', 'info');
                 return;
             }

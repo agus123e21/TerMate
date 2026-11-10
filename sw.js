@@ -1,8 +1,8 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v3';
-const TILE_CACHE = 'termate-tiles-v1';
+const CACHE_NAME = 'termate-v4';
+const TILE_CACHE = 'termate-tiles-v2';
 const API_CACHE = 'termate-api-v1';
 
 // Recursos core que se cachean en la instalación
@@ -71,7 +71,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 3. Recursos core → Cache First
+  // 3. Recursos del mismo origen clave (app.js, styles.css, index.html) → Network First
+  if (
+    url.hostname === self.location.hostname &&
+    (url.pathname === '/' ||
+     url.pathname.endsWith('/index.html') ||
+     url.pathname.endsWith('/styles.css') ||
+     url.pathname.endsWith('/app.js'))
+  ) {
+    event.respondWith(networkThenCache(event.request, CACHE_NAME));
+    return;
+  }
+
+  // 4. Recursos core y estáticos restantes → Cache First
   if (
     url.hostname === self.location.hostname ||
     url.hostname.includes('fonts.googleapis.com') ||
@@ -86,7 +98,7 @@ self.addEventListener('fetch', event => {
 // Cache First (ideal para tiles estáticos)
 async function cacheThenNetwork(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(request));
   if (cached) return cached;
 
   try {
@@ -105,7 +117,7 @@ async function cacheThenNetwork(request, cacheName) {
   }
 }
 
-// Network First (ideal para APIs que cambian)
+// Network First (ideal para APIs que cambian y recursos locales en desarrollo)
 async function networkThenCache(request, cacheName) {
   const cache = await caches.open(cacheName);
   try {
@@ -113,7 +125,7 @@ async function networkThenCache(request, cacheName) {
     if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {
-    const cached = await cache.match(request);
+    const cached = (await cache.match(request, { ignoreSearch: true })) || (await cache.match(request));
     if (cached) return cached;
     return new Response(JSON.stringify({ error: 'sin_conexion' }), {
       headers: { 'Content-Type': 'application/json' },

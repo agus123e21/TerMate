@@ -60,9 +60,16 @@
     // ═══════════════════════════════════════════════════════════
     // 2. REGISTRO SERVICE WORKER (PWA)
     // ═══════════════════════════════════════════════════════════
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-        navigator.serviceWorker.register('./sw.js')
-            .catch(err => console.warn('[SW] Registro omitido:', err));
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js?v=4.1.0').then(reg => {
+                reg.update();
+            }).catch(() => {});
+        });
+    }
+    // Purgar inmediatamente el almacén viejo de Carto
+    if ('caches' in window) {
+        caches.delete('termate-tiles-v1').catch(() => {});
     }
 
     // ═══════════════════════════════════════════════════════════

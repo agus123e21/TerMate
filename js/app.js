@@ -560,14 +560,14 @@
 
             // Destino
             const mDest = L.marker(e.coordsDestino, { icon: crearIconoDestino(color) }).addTo(instanciaMapa);
-            mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${e.destino}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
+            mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${escapeHTML(e.destino)}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
             refMarcadores[e.id] = mDest;
             todosCoords.push(e.coordsDestino);
 
             // Origen
             if (e.coordsOrigen) {
                 const mOr = L.marker(e.coordsOrigen, { icon: crearIconoOrigen() }).addTo(instanciaMapa);
-                mOr.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#10b981">Origen de Carga</div><div style="font-size:0.8rem;color:#94a3b8">${e.origen}</div>`);
+                mOr.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#10b981">Origen de Carga</div><div style="font-size:0.8rem;color:#94a3b8">${escapeHTML(e.origen)}</div>`);
                 refMarcadores[`${e.id}_or`] = mOr;
                 todosCoords.push(e.coordsOrigen);
 
@@ -583,7 +583,7 @@
                     
                     const distTxt = formatoDistancia(e.distancia);
                     const rutaPopup = `<div style="font-weight:700;font-size:0.88rem">Ruta #${String(e.id).padStart(4,'0')}</div>`
-                        + `<div style="font-size:0.8rem;margin-top:4px">${e.origen.split(',')[0]} -> ${e.destino.split(',')[0]}</div>`
+                        + `<div style="font-size:0.8rem;margin-top:4px">${escapeHTML(e.origen.split(',')[0])} -&gt; ${escapeHTML(e.destino.split(',')[0])}</div>`
                         + `<div style="font-size:0.8rem;color:#38bdf8;font-weight:600;margin-top:2px">Distancia: ${distTxt}</div>`;
                     poly.bindPopup(rutaPopup);
                     refPolylines[e.id] = poly;
@@ -666,7 +666,13 @@
             const dist   = formatoDistancia(e.distancia);
             const tiempo = formatoTiempo(e.tiempo);
             const fuel   = e.distancia ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
-            const camionLabel = camion ? `${camion.nombre}${camion.patente ? ' (' + camion.patente + ')' : ''}` : null;
+            const camionLabel = camion ? `${escapeHTML(camion.nombre)}${camion.patente ? ' (' + escapeHTML(camion.patente) + ')' : ''}` : null;
+            const oriCiudad = escapeHTML(e.origen.split(',')[0]);
+            const oriProv   = escapeHTML(e.origen.split(',').slice(1).join(',').trim() || 'Argentina');
+            const destCiudad = escapeHTML(e.destino.split(',')[0]);
+            const destProv   = escapeHTML(e.destino.split(',').slice(1).join(',').trim() || 'Argentina');
+            const productoTxt = `${escapeHTML(e.producto)}${e.pesoCarga ? ' · ' + escapeHTML(e.pesoCarga) + ' tn' : ''}`;
+            const remitoTxt = e.remito ? escapeHTML(e.remito) : '';
 
             return `<div class="viaje-card-v2" data-id="${e.id}" role="button" tabindex="0">
                 <!-- Estado e ID -->
@@ -679,14 +685,14 @@
                 <div class="vc2-ruta">
                     <div class="vc2-punto">
                         <span class="vc2-dot vc2-dot--ori"></span>
-                        <span class="vc2-ciudad">${e.origen.split(',')[0]}</span>
-                        <span class="vc2-provincia">${e.origen.split(',').slice(1).join(',').trim() || 'Argentina'}</span>
+                        <span class="vc2-ciudad">${oriCiudad}</span>
+                        <span class="vc2-provincia">${oriProv}</span>
                     </div>
                     <div class="vc2-linea-ruta"></div>
                     <div class="vc2-punto">
                         <span class="vc2-dot vc2-dot--dest"></span>
-                        <span class="vc2-ciudad">${e.destino.split(',')[0]}</span>
-                        <span class="vc2-provincia">${e.destino.split(',').slice(1).join(',').trim() || 'Argentina'}</span>
+                        <span class="vc2-ciudad">${destCiudad}</span>
+                        <span class="vc2-provincia">${destProv}</span>
                     </div>
                 </div>
 
@@ -719,10 +725,10 @@
                     </span>` : ''}
                     <span class="vc2-tag">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                        ${e.producto}${e.pesoCarga ? ' · ' + e.pesoCarga + ' tn' : ''}
+                        ${productoTxt}
                     </span>
-                    ${e.remito ? `<span class="vc2-tag" style="color:var(--c-primary-light);font-weight:600">
-                        Remito: ${e.remito}
+                    ${remitoTxt ? `<span class="vc2-tag" style="color:var(--c-primary-light);font-weight:600">
+                        Remito: ${remitoTxt}
                     </span>` : ''}
                 </div>
 
@@ -1597,7 +1603,21 @@
         const now = new Date();
         const fecha = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const hora = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-        const numRemito = e.remito || `R-0001-${String(e.id).padStart(8, '0')}`;
+        const rawNumRemito = e.remito || `R-0001-${String(e.id).padStart(8, '0')}`;
+        const numRemito = escapeHTML(rawNumRemito);
+
+        const origenSafe = escapeHTML(e.origen);
+        const destinoSafe = escapeHTML(e.destino);
+        const clienteSafe = escapeHTML(e.cliente || 'Consignatario en Destino');
+        const estadoSafe = escapeHTML(e.estado);
+        const productoSafe = escapeHTML(e.producto || 'Mercaderia General');
+        const pesoSafe = escapeHTML(e.pesoCarga ? e.pesoCarga + ' Toneladas' : 'Carga Estandar');
+        const camionSafe = camion 
+            ? `${escapeHTML(camion.nombre)} · Patente ${escapeHTML(camion.patente || 'S/P')}` 
+            : 'Unidad de Flota TerMate';
+        const choferSafe = chofer
+            ? `${escapeHTML(chofer.nombre)} (DNI ${escapeHTML(chofer.dni || '—')} · Lic. ${escapeHTML(chofer.carnetCat || 'E')})`
+            : escapeHTML(camion?.camionero || 'Chofer Designado');
 
         const html = `<!DOCTYPE html>
 <html lang="es">
@@ -1649,21 +1669,21 @@
   <div class="grid-2">
     <div class="data-group">
       <span class="data-label">Punto de Origen (Carga)</span>
-      <span class="data-val">${e.origen}</span>
+      <span class="data-val">${origenSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Punto de Destino (Descarga)</span>
-      <span class="data-val">${e.destino}</span>
+      <span class="data-val">${destinoSafe}</span>
     </div>
   </div>
   <div class="grid-2" style="margin-top:0.75rem">
     <div class="data-group">
       <span class="data-label">Cliente / Receptor</span>
-      <span class="data-val">${e.cliente || 'Consignatario en Destino'}</span>
+      <span class="data-val">${clienteSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Estado de Carga</span>
-      <span class="data-val">${e.estado}</span>
+      <span class="data-val">${estadoSafe}</span>
     </div>
   </div>
 
@@ -1672,11 +1692,11 @@
     <div class="grid-2">
       <div class="data-group">
         <span class="data-label">Descripcion de Carga</span>
-        <span class="data-val">${e.producto || 'Mercaderia General'}</span>
+        <span class="data-val">${productoSafe}</span>
       </div>
       <div class="data-group">
         <span class="data-label">Peso Declarado</span>
-        <span class="data-val">${e.pesoCarga ? e.pesoCarga + ' Toneladas' : 'Carga Estandar'}</span>
+        <span class="data-val">${pesoSafe}</span>
       </div>
     </div>
     <div class="grid-2" style="margin-top:0.6rem">
@@ -1695,11 +1715,11 @@
   <div class="grid-2">
     <div class="data-group">
       <span class="data-label">Camion Asignado</span>
-      <span class="data-val">${camion ? camion.nombre + ' · Patente ' + (camion.patente || 'S/P') : 'Unidad de Flota TerMate'}</span>
+      <span class="data-val">${camionSafe}</span>
     </div>
     <div class="data-group">
       <span class="data-label">Chofer Conductor</span>
-      <span class="data-val">${chofer ? chofer.nombre + ' (DNI ' + (chofer.dni || '—') + ' · Lic. ' + (chofer.carnetCat || 'E') + ')' : (camion?.camionero || 'Chofer Designado')}</span>
+      <span class="data-val">${choferSafe}</span>
     </div>
   </div>
 
@@ -1721,14 +1741,28 @@
 
         const win = window.open('', '_blank');
         if (win) {
+            win.opener = null;
             win.document.write(html);
             win.document.close();
+            try {
+                win.print();
+            } catch {}
         }
     }
 
     // ═══════════════════════════════════════════════════════════
     // 13. UTILIDADES
     // ═══════════════════════════════════════════════════════════
+    function escapeHTML(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function haversine(c1, c2) {
         const R = 6371;
         const dLat = (c2[0] - c1[0]) * Math.PI / 180;

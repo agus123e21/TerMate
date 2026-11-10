@@ -114,20 +114,25 @@
         } catch {}
     }
 
+    function safeParseArray(raw, fallback = []) {
+        if (!raw) return fallback;
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : fallback;
+        } catch {
+            return fallback;
+        }
+    }
+
     function cargarDatos() {
         try {
-            const e = localStorage.getItem(KEY_ENVIOS);
-            if (e) envios = JSON.parse(e);
-            const c = localStorage.getItem(KEY_CONTADOR);
-            if (c) contadorId = parseInt(c, 10);
-            const ca = localStorage.getItem(KEY_CAMIONES);
-            if (ca) camiones = JSON.parse(ca);
-            const cc = localStorage.getItem(KEY_CONT_CAM);
-            if (cc) contadorCamiones = parseInt(cc, 10);
-            const cnr = localStorage.getItem(KEY_CAMIONEROS);
-            if (cnr) camioneros = JSON.parse(cnr);
-            const ccnr = localStorage.getItem(KEY_CONT_CNR);
-            if (ccnr) contadorCamioneros = parseInt(ccnr, 10);
+            envios = safeParseArray(localStorage.getItem(KEY_ENVIOS), []);
+            camiones = safeParseArray(localStorage.getItem(KEY_CAMIONES), []);
+            camioneros = safeParseArray(localStorage.getItem(KEY_CAMIONEROS), []);
+
+            const rawId = parseInt(localStorage.getItem(KEY_CONTADOR), 10);
+            const maxEnvioId = envios.reduce((max, e) => Math.max(max, Number(e?.id) || 0), 0);
+            contadorId = Number.isInteger(rawId) && rawId > 0 ? rawId : Math.max(1, maxEnvioId + 1);
 
             // Cargar datos por defecto iniciales si esta completamente vacio
             if (camiones.length === 0) {
@@ -136,13 +141,22 @@
                     { id: 2, nombre: 'Mercedes-Benz Actros 2645', patente: 'AE 789 OP', camionero: 'Martin Rodriguez', camioneroId: 2, peso: 30, alto: 4.0, largo: 19.0, ancho: 2.6, consumoVacio: 25, consumoLleno: 38 }
                 ];
                 contadorCamiones = 3;
+            } else {
+                const rawCam = parseInt(localStorage.getItem(KEY_CONT_CAM), 10);
+                const maxCamId = camiones.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
+                contadorCamiones = Number.isInteger(rawCam) && rawCam > 0 ? rawCam : Math.max(1, maxCamId + 1);
             }
+
             if (camioneros.length === 0) {
                 camioneros = [
                     { id: 1, nombre: 'Carlos Mendez', dni: '32.145.890', tel: '011-15-5544-3322', ingreso: '2023-03-15', carnetNum: '4589012', carnetCat: 'E', carnetVto: '2027-08-20', camionAsignadoId: 1, capacitaciones: [{ nombre: 'Cargas Peligrosas', fecha: '2024-02-10' }], historial: [{ fecha: '2026-08-10', ruta: 'si', puntualidad: 'puntual', incidencias: '', bono: 'si', obs: 'Excelente viaje' }] },
                     { id: 2, nombre: 'Martin Rodriguez', dni: '35.478.120', tel: '0341-15-6677-8899', ingreso: '2024-01-10', carnetNum: '5120340', carnetCat: 'E', carnetVto: '2028-01-15', camionAsignadoId: 2, capacitaciones: [{ nombre: 'Manejo Defensivo', fecha: '2024-05-12' }], historial: [] }
                 ];
                 contadorCamioneros = 3;
+            } else {
+                const rawCnr = parseInt(localStorage.getItem(KEY_CONT_CNR), 10);
+                const maxCnrId = camioneros.reduce((max, cnr) => Math.max(max, Number(cnr?.id) || 0), 0);
+                contadorCamioneros = Number.isInteger(rawCnr) && rawCnr > 0 ? rawCnr : Math.max(1, maxCnrId + 1);
             }
         } catch (err) {
             console.error('[Storage] Error al cargar:', err);

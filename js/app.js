@@ -407,29 +407,37 @@
     // 7. GESTION DE MAPAS LEAFLET
     // ═══════════════════════════════════════════════════════════
     const TILE_PROVIDERS = {
-        dark: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         streets: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
 
     let currentTileLayerFull = null;
+    let currentTileLayerInline = null;
 
     function cambiarCapaMapa(map, layerType) {
         if (!map) return;
-        const isDark = (layerType === 'dark' || !layerType);
-        const url = TILE_PROVIDERS[layerType] || TILE_PROVIDERS.dark;
-        const attrib = layerType === 'satellite' 
+        const targetType = (layerType === 'satellite') ? 'satellite' : 'streets';
+        const url = TILE_PROVIDERS[targetType];
+        const attrib = targetType === 'satellite' 
             ? 'Tiles &copy; Esri' 
             : '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
         
-        if (currentTileLayerFull) {
-            map.removeLayer(currentTileLayerFull);
+        const isInline = (map === mapaInline);
+        const currentLayer = isInline ? currentTileLayerInline : currentTileLayerFull;
+
+        if (currentLayer) {
+            map.removeLayer(currentLayer);
         }
-        currentTileLayerFull = L.tileLayer(url, { 
+        const newLayer = L.tileLayer(url, { 
             attribution: attrib, 
-            maxZoom: 18,
-            className: isDark ? 'map-tiles-dark' : ''
+            maxZoom: 18
         }).addTo(map);
+
+        if (isInline) {
+            currentTileLayerInline = newLayer;
+        } else {
+            currentTileLayerFull = newLayer;
+        }
     }
 
     function initMapas() {
@@ -454,7 +462,7 @@
         if (!mapaFull && document.getElementById('mapa')) {
             try {
                 mapaFull = L.map('mapa', { ...mapOpts, scrollWheelZoom: true }).setView([-38.4, -63.6], 5);
-                cambiarCapaMapa(mapaFull, 'dark');
+                cambiarCapaMapa(mapaFull, 'streets');
             } catch (err) {
                 console.error(err);
             }
@@ -469,13 +477,13 @@
                     dragging: !isMobile,
                     tap: true
                 }).setView([-38.4, -63.6], 5);
-                L.tileLayer(TILE_PROVIDERS.dark, { attribution: '&copy; OpenStreetMap', maxZoom: 18, className: 'map-tiles-dark' }).addTo(mapaInline);
+                cambiarCapaMapa(mapaInline, 'streets');
             } catch (err) {
                 console.error(err);
             }
         }
 
-        // Capas
+        // Capas Mapa Full
         document.querySelectorAll('.map-layer-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
@@ -484,13 +492,24 @@
             });
         });
 
+        // Capas Mapa Inline
+        document.querySelectorAll('.inline-layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.inline-layer-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cambiarCapaMapa(mapaInline, btn.dataset.layer);
+            });
+        });
+
         // Buscador en mapa full
         setupAutocompletado('map-search-input', 'map-search-sugerencias');
     }
 
     // ─── POIS DE ESTACIONES Y PARADORES ───────────────────────
-    let poiMarcadores = { gasolina: [], comida: [] };
-    let poiActivo = { gasolina: false, comida: false };
+    let poiMarcadoresFull = { gasolina: [], comida: [] };
+    let poiMarcadoresInline = { gasolina: [], comida: [] };
+    let poiActivoFull = { gasolina: false, comida: false };
+    let poiActivoInline = { gasolina: false, comida: false };
 
     const POIS_ARGENTINA = {
         gasolina: [
@@ -531,17 +550,24 @@
         return L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
     }
 
-    function togglePOIMapa(categoria) {
-        if (!mapaFull) return;
+    function togglePOIMapa(categoria, target = 'full') {
+        const isInline = (target === 'inline');
+        const map = isInline ? mapaInline : mapaFull;
+        if (!map) return;
 
-        poiActivo[categoria] = !poiActivo[categoria];
-        const btnId = categoria === 'gasolina' ? 'btn-poi-combustible' : 'btn-poi-comida';
+        const estadosActivos = isInline ? poiActivoInline : poiActivoFull;
+        const marcadoresObj = isInline ? poiMarcadoresInline : poiMarcadoresFull;
+
+        estadosActivos[categoria] = !estadosActivos[categoria];
+        const btnId = isInline
+            ? (categoria === 'gasolina' ? 'btn-inline-poi-combustible' : 'btn-inline-poi-comida')
+            : (categoria === 'gasolina' ? 'btn-poi-combustible' : 'btn-poi-comida');
         const btn = document.getElementById(btnId);
 
-        if (!poiActivo[categoria]) {
+        if (!estadosActivos[categoria]) {
             if (btn) btn.classList.remove('active');
-            poiMarcadores[categoria].forEach(m => mapaFull.removeLayer(m));
-            poiMarcadores[categoria] = [];
+            marcadoresObj[categoria].forEach(m => map.removeLayer(m));
+            marcadoresObj[categoria] = [];
             showToast(`Ocultando ${categoria === 'gasolina' ? 'estaciones de servicio' : 'paradores de descanso'}.`, 'info');
             return;
         }
@@ -551,22 +577,22 @@
         const icono = categoria === 'gasolina' ? crearIconoCombustible() : crearIconoComida();
 
         pois.forEach(p => {
-            const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(mapaFull);
+            const m = L.marker([p.lat, p.lon], { icon: icono }).addTo(map);
             const tipoLabel = categoria === 'gasolina' ? 'Estacion de Servicio' : 'Parador de Descanso';
             const popupHtml = `<div class="popup-titulo" style="color:${categoria === 'gasolina' ? '#34d399' : '#fbbf24'};font-weight:700">
                 ${tipoLabel}
             </div>
-            <div class="popup-linea"><strong>${p.titulo}</strong></div>
-            <div class="popup-linea">${p.direccion}</div>
+            <div class="popup-linea"><strong>${escapeHTML(p.titulo)}</strong></div>
+            <div class="popup-linea">${escapeHTML(p.direccion)}</div>
             <div class="popup-linea" style="color:#38bdf8;font-weight:600">Calificacion: ${p.rating} / 5 (${p.reviews} resenas)</div>`;
             m.bindPopup(popupHtml);
-            poiMarcadores[categoria].push(m);
+            marcadoresObj[categoria].push(m);
         });
 
-        if (poiMarcadores[categoria].length > 0) {
+        if (marcadoresObj[categoria].length > 0 && !isInline) {
             try {
-                const group = L.featureGroup(poiMarcadores[categoria]);
-                mapaFull.fitBounds(group.getBounds().pad(0.1));
+                const group = L.featureGroup(marcadoresObj[categoria]);
+                map.fitBounds(group.getBounds().pad(0.1));
             } catch {}
         }
 
@@ -1410,9 +1436,13 @@
         document.getElementById('btn-cancelar-edicion')?.addEventListener('click', cancelarEdicion);
         document.getElementById('btn-ver-mapa-resultado')?.addEventListener('click', () => irATab('mapa'));
 
-        // POIs
-        document.getElementById('btn-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina'));
-        document.getElementById('btn-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida'));
+        // POIs Mapa Full
+        document.getElementById('btn-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina', 'full'));
+        document.getElementById('btn-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida', 'full'));
+
+        // POIs Mapa Inline
+        document.getElementById('btn-inline-poi-combustible')?.addEventListener('click', () => togglePOIMapa('gasolina', 'inline'));
+        document.getElementById('btn-inline-poi-comida')?.addEventListener('click', () => togglePOIMapa('comida', 'inline'));
 
         // Navegacion
         document.querySelectorAll('.nav-btn, .sidebar-btn').forEach(btn => {

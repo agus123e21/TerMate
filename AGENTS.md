@@ -87,8 +87,9 @@ interface Camionero {
 
 ## 4. Reglas Estrictas para Agentes de IA
 1. **Mapas & Tiles**:
-   - Usar **OpenStreetMap estándar**: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`.
-   - Aplicar siempre la clase CSS `.map-tiles-dark` (filtro de alto contraste para Dark Mode).
+   - Usar **OpenStreetMap estándar por defecto**: `https://tile.openstreetmap.org/{z}/{x}/{y}.png` (sin filtros CSS de inversión ni distorsión, render nativo limpio).
+   - Capa secundaria disponible: **ArcGIS Satelital**: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}`.
+   - Tanto el mapa general como el mapa de previsualización inline deben poseer selectores de capa ("Calles" y "Satelital") y de POIs ("Estaciones" y "Paradores").
    - **PROHIBIDO el uso de CARTO (`cartocdn.com`)** debido a bloqueos de CORS, requerimiento de token y respuestas 403 en producción.
 2. **Seguridad contra XSS**:
    - **NUNCA** inyectar variables de entrada de usuario o de storage directamente en `innerHTML`.

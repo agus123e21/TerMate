@@ -1226,6 +1226,7 @@
 
     function cerrarModalViaje() {
         document.getElementById('modal-viaje')?.classList.add('hidden');
+        idEnvioEditando = null;
         rutaPendiente = null;
         if (mapaInline) {
             actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
@@ -1890,8 +1891,10 @@
     }
 
     function formatoFuel(km, pesoCarga = 0, camionId = null) {
+        if (km === null || km === undefined || isNaN(km)) return null;
+        if (km === 0) return '0 L';
         const camion = camionId ? camiones.find(c => c.id === camionId) : camiones[0];
-        if (!camion || !km || !camion.consumoVacio || !camion.consumoLleno) return null;
+        if (!camion || !camion.consumoVacio || !camion.consumoLleno) return null;
         const capMax = camion.peso || 1;
         const cargaRatio = Math.min(1, Math.max(0, (pesoCarga || 0) / capMax));
         const consumoPor100km = camion.consumoVacio + (camion.consumoLleno - camion.consumoVacio) * cargaRatio;

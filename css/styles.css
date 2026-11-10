@@ -945,6 +945,13 @@ select.field-input {
     box-shadow: var(--shadow-md);
 }
 
+.viaje-card-v2:focus-visible,
+.camion-card:focus-visible,
+.camionero-card:focus-visible {
+    outline: 2px solid var(--c-primary, #3b82f6);
+    outline-offset: 2px;
+}
+
 .vc2-estado-bar {
     display: flex;
     align-items: center;

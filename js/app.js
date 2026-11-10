@@ -705,7 +705,7 @@
             const productoTxt = `${escapeHTML(e.producto)}${e.pesoCarga ? ' · ' + escapeHTML(e.pesoCarga) + ' tn' : ''}`;
             const remitoTxt = e.remito ? escapeHTML(e.remito) : '';
 
-            return `<div class="viaje-card-v2" data-id="${e.id}" role="button" tabindex="0">
+            return `<div class="viaje-card-v2" data-id="${e.id}" tabindex="0">
                 <!-- Estado e ID -->
                 <div class="vc2-estado-bar">
                     <span class="vc2-estado-badge ${clase}">${estadoLabel}</span>
@@ -1414,6 +1414,18 @@
             if (camion) abrirModalCamion(camion);
         });
 
+        document.getElementById('lista-camiones')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.camion-card');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    const id = Number(card.dataset.id);
+                    const camion = camiones.find(c => c.id === id);
+                    if (camion) abrirModalCamion(camion);
+                }
+            }
+        });
+
         document.getElementById('form-camion')?.addEventListener('submit', e => {
             e.preventDefault();
             const id = document.getElementById('cam-id').value;
@@ -1539,6 +1551,16 @@
             if (card) abrirPerfilCamionero(Number(card.dataset.id));
         });
 
+        document.getElementById('lista-camioneros')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.camionero-card');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    abrirPerfilCamionero(Number(card.dataset.id));
+                }
+            }
+        });
+
         document.getElementById('btn-cerrar-perfil')?.addEventListener('click', cerrarPerfilCamionero);
         document.getElementById('btn-perfil-nuevo-registro')?.addEventListener('click', () => {
             if (camioneroPerfilId === null) return;
@@ -1630,6 +1652,16 @@
             }
             const card = e.target.closest('.viaje-card-v2');
             if (card) abrirDetalle(Number(card.dataset.id));
+        });
+
+        document.getElementById('lista-viajes')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.viaje-card-v2');
+                if (card && e.target === card) {
+                    e.preventDefault();
+                    abrirDetalle(Number(card.dataset.id));
+                }
+            }
         });
 
         document.getElementById('btn-cerrar-detalle')?.addEventListener('click', cerrarDetalle);

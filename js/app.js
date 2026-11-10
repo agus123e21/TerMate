@@ -592,9 +592,8 @@
         });
 
         if (todosCoords.length > 0) {
-            const grupo = L.featureGroup(todosCoords.map(c => L.marker(c)));
             try {
-                instanciaMapa.fitBounds(grupo.getBounds().pad(0.2));
+                instanciaMapa.fitBounds(L.latLngBounds(todosCoords).pad(0.2));
             } catch {}
         }
     }

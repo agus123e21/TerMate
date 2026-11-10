@@ -386,8 +386,8 @@
     // 7. GESTION DE MAPAS LEAFLET
     // ═══════════════════════════════════════════════════════════
     const TILE_PROVIDERS = {
-        dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        streets: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        dark: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        streets: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
 
@@ -395,13 +395,20 @@
 
     function cambiarCapaMapa(map, layerType) {
         if (!map) return;
+        const isDark = (layerType === 'dark' || !layerType);
         const url = TILE_PROVIDERS[layerType] || TILE_PROVIDERS.dark;
-        const attrib = layerType === 'satellite' ? 'Esri, Maxar' : 'OpenStreetMap, CARTO';
+        const attrib = layerType === 'satellite' 
+            ? 'Tiles &copy; Esri' 
+            : '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
         
         if (currentTileLayerFull) {
             map.removeLayer(currentTileLayerFull);
         }
-        currentTileLayerFull = L.tileLayer(url, { attribution: attrib, maxZoom: 19 }).addTo(map);
+        currentTileLayerFull = L.tileLayer(url, { 
+            attribution: attrib, 
+            maxZoom: 18,
+            className: isDark ? 'map-tiles-dark' : ''
+        }).addTo(map);
     }
 
     function initMapas() {
@@ -441,7 +448,7 @@
                     dragging: !isMobile,
                     tap: true
                 }).setView([-38.4, -63.6], 5);
-                L.tileLayer(TILE_PROVIDERS.dark, { attribution: 'CARTO', maxZoom: 19 }).addTo(mapaInline);
+                L.tileLayer(TILE_PROVIDERS.dark, { attribution: '&copy; OpenStreetMap', maxZoom: 18, className: 'map-tiles-dark' }).addTo(mapaInline);
             } catch (err) {
                 console.error(err);
             }

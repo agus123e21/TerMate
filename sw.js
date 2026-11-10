@@ -1,7 +1,7 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v2';
+const CACHE_NAME = 'termate-v3';
 const TILE_CACHE = 'termate-tiles-v1';
 const API_CACHE = 'termate-api-v1';
 

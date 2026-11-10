@@ -1128,6 +1128,13 @@ select.field-input {
     z-index: var(--z-map-pane);
 }
 
+/* Mosaicos de OpenStreetMap en Modo Dark Steel (100% libre sin API key) */
+.map-tiles-dark,
+.leaflet-tile.map-tiles-dark,
+.map-tiles-dark .leaflet-tile {
+    filter: brightness(0.65) invert(1) contrast(3) hue-rotate(200deg) saturate(0.25) brightness(0.75);
+}
+
 .map-overlay-header {
     position: absolute;
     top: 14px;

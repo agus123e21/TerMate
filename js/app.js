@@ -605,9 +605,17 @@
             }
         });
 
-        if (todosCoords.length > 0) {
+        if (todosCoords.length === 0) {
             try {
-                instanciaMapa.fitBounds(L.latLngBounds(todosCoords).pad(0.2));
+                instanciaMapa.setView([-38.4, -63.6], 5);
+            } catch {}
+        } else if (todosCoords.length === 1) {
+            try {
+                instanciaMapa.setView(todosCoords[0], 12);
+            } catch {}
+        } else {
+            try {
+                instanciaMapa.fitBounds(L.latLngBounds(todosCoords).pad(0.15), { maxZoom: 14 });
             } catch {}
         }
     }

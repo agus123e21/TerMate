@@ -1196,6 +1196,9 @@
     function cerrarModalViaje() {
         document.getElementById('modal-viaje')?.classList.add('hidden');
         rutaPendiente = null;
+        if (mapaInline) {
+            actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+        }
     }
 
     function iniciarEdicion(id) {
@@ -1220,12 +1223,16 @@
 
     function cancelarEdicion() {
         idEnvioEditando = null;
+        rutaPendiente = null;
         document.getElementById('form-envio')?.reset();
         document.getElementById('form-titulo').textContent = 'Nueva Ruta de Transporte';
         document.getElementById('btn-submit-texto').textContent = 'Calcular Ruta y Emitir';
         document.getElementById('btn-cancelar-edicion').classList.add('hidden');
         document.getElementById('resultado-ruta')?.classList.add('hidden');
         renderSelectCamiones();
+        if (mapaInline) {
+            actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1293,8 +1300,13 @@
                 } else {
                     const idx = envios.findIndex(x => x.id === idEnvioEditando);
                     if (idx !== -1) {
-                        envios[idx] = { ...envios[idx], origen, destino, producto, pesoCarga, estado, camionId, ...dataRuta };
-                        abrirModalViaje(envios[idx]);
+                        rutaPendiente = {
+                            ...envios[idx],
+                            origen, destino, producto, pesoCarga, estado, camionId,
+                            ...dataRuta,
+                            esEdicion: true
+                        };
+                        abrirModalViaje(rutaPendiente);
                     }
                 }
 
@@ -1514,11 +1526,18 @@
 
             if (idEnvioEditando !== null) {
                 const idx = envios.findIndex(x => x.id === idEnvioEditando);
-                if (idx !== -1) envios[idx] = { ...envios[idx], ...datosExtra };
+                if (idx !== -1) {
+                    const datosActualizados = rutaPendiente
+                        ? { ...rutaPendiente, ...datosExtra }
+                        : { ...envios[idx], ...datosExtra };
+                    delete datosActualizados.esEdicion;
+                    envios[idx] = datosActualizados;
+                }
                 showToast('Despacho actualizado.', 'success');
                 cancelarEdicion();
             } else if (rutaPendiente) {
                 const nuevo = { id: contadorId++, ...rutaPendiente, ...datosExtra };
+                delete nuevo.esEdicion;
                 envios.push(nuevo);
                 showToast('Remito y ruta emitidos con exito.', 'success');
                 document.getElementById('form-envio')?.reset();

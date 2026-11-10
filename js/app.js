@@ -62,9 +62,23 @@
     // ═══════════════════════════════════════════════════════════
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             navigator.serviceWorker.register('sw.js?v=4.1.0').then(reg => {
-                reg.update();
+                if (isLocalhost) {
+                    reg.update();
+                }
             }).catch(() => {});
+
+            // En desarrollo local, escuchar actualización de SW y recargar para usar siempre la versión más fresca
+            if (isLocalhost) {
+                let refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!refreshing) {
+                        refreshing = true;
+                        window.location.reload();
+                    }
+                });
+            }
         });
     }
     // Purgar inmediatamente el almacén viejo de Carto

@@ -49,6 +49,22 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
+  // Bypass de caché para desarrollo local (evitar cache lock en equipo de desarrollo)
+  const isDevHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (isDevHost && (
+    url.origin === self.location.origin ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    event.request.destination === 'document' ||
+    event.request.destination === 'script' ||
+    event.request.destination === 'style'
+  )) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   // 1. Tiles del mapa (CartoDB / OSM / ArcGIS) → Cache First, luego red
   if (
     url.hostname.includes('basemaps.cartocdn.com') ||

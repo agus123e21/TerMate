@@ -128,7 +128,11 @@
             res.push(coords[i]);
         }
         if (coords.length > 0 && res[res.length - 1] !== coords[coords.length - 1]) {
-            res.push(coords[coords.length - 1]);
+            if (res.length >= maxPuntos) {
+                res[res.length - 1] = coords[coords.length - 1];
+            } else {
+                res.push(coords[coords.length - 1]);
+            }
         }
         return res;
     }
@@ -715,12 +719,12 @@
             const camion = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
             const dist   = formatoDistancia(e.distancia);
             const tiempo = formatoTiempo(e.tiempo);
-            const fuel   = e.distancia ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
+            const fuel   = (e.distancia !== null && e.distancia !== undefined) ? (formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—') : '—';
             const camionLabel = camion ? `${escapeHTML(camion.nombre)}${camion.patente ? ' (' + escapeHTML(camion.patente) + ')' : ''}` : null;
-            const oriCiudad = escapeHTML(e.origen.split(',')[0]);
-            const oriProv   = escapeHTML(e.origen.split(',').slice(1).join(',').trim() || 'Argentina');
-            const destCiudad = escapeHTML(e.destino.split(',')[0]);
-            const destProv   = escapeHTML(e.destino.split(',').slice(1).join(',').trim() || 'Argentina');
+            const oriCiudad = escapeHTML((e.origen || '').split(',')[0]);
+            const oriProv   = escapeHTML((e.origen || '').split(',').slice(1).join(',').trim() || 'Argentina');
+            const destCiudad = escapeHTML((e.destino || '').split(',')[0]);
+            const destProv   = escapeHTML((e.destino || '').split(',').slice(1).join(',').trim() || 'Argentina');
             const productoTxt = `${escapeHTML(e.producto)}${e.pesoCarga ? ' · ' + escapeHTML(e.pesoCarga) + ' tn' : ''}`;
             const remitoTxt = e.remito ? escapeHTML(e.remito) : '';
 
@@ -921,6 +925,7 @@
         if (!vto) return '';
         const hoy = new Date();
         const vtoDate = new Date(vto);
+        if (isNaN(vtoDate.getTime())) return 'vto-exp';
         const diff = (vtoDate - hoy) / (1000 * 60 * 60 * 24);
         if (diff < 0)  return 'vto-exp';
         if (diff < 60) return 'vto-prox';
@@ -1201,7 +1206,7 @@
                 e.pesoCarga ? ['Peso', `${e.pesoCarga} tn`] : null,
                 ['Distancia Estimada', formatoDistancia(e.distancia)],
                 ['Tiempo Estimado', formatoTiempo(e.tiempo)],
-                e.distancia ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
+                (e.distancia !== null && e.distancia !== undefined) ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
                 ['Estado', e.estado],
                 camion ? ['Camion Asignado', `${camion.nombre} (${camion.patente || 'S/P'})`] : null,
                 camion?.camionero ? ['Chofer', camion.camionero] : null,

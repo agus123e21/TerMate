@@ -17,12 +17,18 @@ const CORE_ASSETS = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 ];
 
-// Instalación: precachear recursos core
+// Instalación: precachear recursos core con tolerancia a fallos
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CORE_ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const asset of CORE_ASSETS) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn('[SW] Fallo precache:', asset);
+        }
+      }
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -43,20 +49,22 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // 1. Tiles del mapa (CartoDB / OSM) → Cache First, luego red
+  // 1. Tiles del mapa (CartoDB / OSM / ArcGIS) → Cache First, luego red
   if (
     url.hostname.includes('basemaps.cartocdn.com') ||
-    url.hostname.includes('tile.openstreetmap.org')
+    url.hostname.includes('tile.openstreetmap.org') ||
+    url.hostname.includes('server.arcgisonline.com')
   ) {
     event.respondWith(cacheThenNetwork(event.request, TILE_CACHE));
     return;
   }
 
-  // 2. APIs de georeferencia argentina y SerpApi → Network First, fallback cache
+  // 2. APIs de georeferencia argentina, SerpApi y OSRM → Network First, fallback cache
   if (
     url.hostname.includes('apis.datos.gob.ar') ||
     url.hostname.includes('api.openrouteservice.org') ||
     url.hostname.includes('nominatim.openstreetmap.org') ||
+    url.hostname.includes('router.project-osrm.org') ||
     url.hostname.includes('serpapi.com')
   ) {
     event.respondWith(networkThenCache(event.request, API_CACHE));

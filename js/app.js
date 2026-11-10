@@ -542,7 +542,7 @@
         if (elDist) elDist.textContent = formatoDistancia(totalDist);
     }
 
-    function actualizarMapa(instanciaMapa, refMarcadores, refPolylines, incluirTodos) {
+    function actualizarMapa(instanciaMapa, refMarcadores, refPolylines, incluirTodos, viajeTemporal = null) {
         if (!instanciaMapa) return;
 
         Object.values(refMarcadores).forEach(m => instanciaMapa.removeLayer(m));
@@ -552,7 +552,7 @@
         for (const k in refPolylines) delete refPolylines[k];
 
         const todosCoords = [];
-        const enviosAMapear = incluirTodos ? envios : envios.slice(-1);
+        const enviosAMapear = viajeTemporal ? [viajeTemporal] : (incluirTodos ? envios : envios.slice(-1));
 
         enviosAMapear.forEach(e => {
             if (!e.coordsDestino) return;
@@ -1250,7 +1250,14 @@
 
                 // Dibujar en mapa inline
                 if (mapaInline) {
-                    actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+                    const viajeTemporal = {
+                        id: idEnvioEditando || 'preview',
+                        origen,
+                        destino,
+                        estado,
+                        ...dataRuta
+                    };
+                    actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false, viajeTemporal);
                 }
 
                 if (idEnvioEditando === null) {

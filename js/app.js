@@ -118,7 +118,7 @@
         if (!raw) return fallback;
         try {
             const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : fallback;
+            return Array.isArray(parsed) ? parsed.filter(x => x && typeof x === 'object') : fallback;
         } catch {
             return fallback;
         }
@@ -571,21 +571,24 @@
         for (const k in refMarcadores) delete refMarcadores[k];
         for (const k in refPolylines) delete refPolylines[k];
 
+        const esCoordValida = c => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]);
         const todosCoords = [];
         const enviosAMapear = viajeTemporal ? [viajeTemporal] : (incluirTodos ? envios : envios.slice(-1));
 
         enviosAMapear.forEach(e => {
-            if (!e.coordsDestino) return;
+            if (!e) return;
             const color = colorPorEstado(e.estado);
 
             // Destino
-            const mDest = L.marker(e.coordsDestino, { icon: crearIconoDestino(color) }).addTo(instanciaMapa);
-            mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${escapeHTML(e.destino)}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
-            refMarcadores[e.id] = mDest;
-            todosCoords.push(e.coordsDestino);
+            if (esCoordValida(e.coordsDestino)) {
+                const mDest = L.marker(e.coordsDestino, { icon: crearIconoDestino(color) }).addTo(instanciaMapa);
+                mDest.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#f8fafc">${escapeHTML(e.destino)}</div><div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Destino de Carga #${String(e.id).padStart(4,'0')}</div>`);
+                refMarcadores[e.id] = mDest;
+                todosCoords.push(e.coordsDestino);
+            }
 
             // Origen
-            if (e.coordsOrigen) {
+            if (esCoordValida(e.coordsOrigen)) {
                 const mOr = L.marker(e.coordsOrigen, { icon: crearIconoOrigen() }).addTo(instanciaMapa);
                 mOr.bindPopup(`<div style="font-weight:700;font-size:0.9rem;color:#10b981">Origen de Carga</div><div style="font-size:0.8rem;color:#94a3b8">${escapeHTML(e.origen)}</div>`);
                 refMarcadores[`${e.id}_or`] = mOr;
@@ -603,7 +606,7 @@
                     
                     const distTxt = formatoDistancia(e.distancia);
                     const rutaPopup = `<div style="font-weight:700;font-size:0.88rem">Ruta #${String(e.id).padStart(4,'0')}</div>`
-                        + `<div style="font-size:0.8rem;margin-top:4px">${escapeHTML(e.origen.split(',')[0])} -&gt; ${escapeHTML(e.destino.split(',')[0])}</div>`
+                        + `<div style="font-size:0.8rem;margin-top:4px">${escapeHTML((e.origen || '').split(',')[0])} -&gt; ${escapeHTML((e.destino || '').split(',')[0])}</div>`
                         + `<div style="font-size:0.8rem;color:#38bdf8;font-weight:600;margin-top:2px">Distancia: ${distTxt}</div>`;
                     poly.bindPopup(rutaPopup);
                     refPolylines[e.id] = poly;

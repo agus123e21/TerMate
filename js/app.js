@@ -812,8 +812,11 @@
                     if (signal.aborted || input.value.trim() !== q) return;
                     if (sugs.length === 0) { lista.classList.remove('visible'); return; }
 
-                    lista.innerHTML = sugs.map(s => `
-                        <li role="option" data-lat="${s.lat}" data-lon="${s.lon}" data-completo="${escapeHTML(s.completo)}">
+                    lista.innerHTML = sugs.map(s => {
+                        const latVal = Number.isFinite(Number(s.lat)) ? Number(s.lat) : 0;
+                        const lonVal = Number.isFinite(Number(s.lon)) ? Number(s.lon) : 0;
+                        return `
+                        <li role="option" data-lat="${latVal}" data-lon="${lonVal}" data-completo="${escapeHTML(s.completo)}">
                             <div class="sug-main-row">
                                 <span class="sug-principal">${escapeHTML(s.principal)}</span>
                             </div>
@@ -821,7 +824,8 @@
                                 <span class="sug-secundario">${escapeHTML(s.secundario)}</span>
                             </div>
                         </li>
-                    `).join('');
+                    `;
+                    }).join('');
                     lista.classList.add('visible');
                 } catch (err) {
                     if (err.name === 'AbortError') return;
@@ -1380,9 +1384,17 @@
             if (btnDel) {
                 if (!confirm('¿Seguro que deseas eliminar este camion de la flota?')) return;
 
-                // Desvincular en cascada
-                envios.forEach(env => {
-                    if (env.camionId === id) env.camionId = null;
+                const camion = camiones.find(c => c.id === id);
+
+                // Desvincular en cascada y guardar snapshot historico
+                envios.forEach(e => {
+                    if (e.camionId === id) {
+                        if (camion) {
+                            e.camionNombre = camion.nombre;
+                            e.camionPatente = camion.patente;
+                        }
+                        e.camionId = null;
+                    }
                 });
                 camioneros.forEach(cnr => {
                     if (cnr.camionAsignadoId === id) cnr.camionAsignadoId = null;
@@ -1710,7 +1722,9 @@
         const pesoSafe = escapeHTML(e.pesoCarga ? e.pesoCarga + ' Toneladas' : 'Carga Estandar');
         const camionSafe = camion 
             ? `${escapeHTML(camion.nombre)} · Patente ${escapeHTML(camion.patente || 'S/P')}` 
-            : 'Unidad de Flota TerMate';
+            : (e.camionNombre 
+                ? `${escapeHTML(e.camionNombre)} · Patente ${escapeHTML(e.camionPatente || 'S/P')}` 
+                : 'Unidad de Flota TerMate');
         const choferSafe = chofer
             ? `${escapeHTML(chofer.nombre)} (DNI ${escapeHTML(chofer.dni || '—')} · Lic. ${escapeHTML(chofer.carnetCat || 'E')})`
             : escapeHTML(camion?.camionero || 'Chofer Designado');

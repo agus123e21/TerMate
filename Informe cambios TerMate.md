@@ -30,8 +30,6 @@
 
 ![Lista de viajes con selector de orden](imagenes/informe/viajes-despues.png)
 
-![Aviso cuando una búsqueda o filtro no tiene coincidencias](imagenes/informe/viajes-sin-resultados.png)
-
 - **Detalle del despacho renovado (`MejorasUIyUX`):** Al abrir un viaje se muestra toda su información operativa ordenada en tarjetas (origen, destino, carga, peso, distancia, tiempo, consumo estimado, estado, camión asignado, chofer, cliente y número de remito).
 - **Cambio de estado y edición sin salir de la ventana (`MejorasUIyUX`):**
   - El botón **Cambiar estado** despliega un selector dentro de la misma ventana para elegir *Pendiente*, *En Tránsito* o *Entregado* y guardarlo con **Actualizar estado** sin cerrar el detalle.

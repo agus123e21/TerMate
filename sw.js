@@ -1,7 +1,7 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v4';
+const CACHE_NAME = 'termate-v5';
 const TILE_CACHE = 'termate-tiles-v2';
 const API_CACHE = 'termate-api-v1';
 
@@ -61,13 +61,12 @@ self.addEventListener('fetch', event => {
     event.request.destination === 'script' ||
     event.request.destination === 'style'
   )) {
-    event.respondWith(fetch(event.request));
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
-  // 1. Tiles del mapa (CartoDB / OSM / ArcGIS) → Cache First, luego red
+  // 1. Tiles del mapa (OSM / ArcGIS) → Cache First, luego red
   if (
-    url.hostname.includes('basemaps.cartocdn.com') ||
     url.hostname.includes('tile.openstreetmap.org') ||
     url.hostname.includes('server.arcgisonline.com')
   ) {

@@ -21,9 +21,13 @@
     
     let idEnvioEditando = null;
     let idEnvioDetalle = null;
+    let detalleModoEdicion = false;
     let filtroEstado = 'todos';
     let filtroBuscar = '';
+    let ordenViajes = 'recientes';
     let rutaPendiente = null;
+    const modalFocusStack = new Map();
+    let confirmCallback = null;
 
     // Camiones registrados
     let camiones = [];
@@ -44,6 +48,7 @@
     const KEY_CONT_CAM     = 'termate_cont_camiones';
     const KEY_CAMIONEROS   = 'termate_camioneros';
     const KEY_CONT_CNR     = 'termate_cont_camioneros';
+    const KEY_DRAFT_RUTA   = 'termate_draft_ruta';
     let cacheGeo = {};
     try {
         const rawCache = localStorage.getItem(KEY_GEO_CACHE);
@@ -63,7 +68,7 @@
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            navigator.serviceWorker.register('sw.js?v=4.1.0').then(reg => {
+            navigator.serviceWorker.register('sw.js?v=4.2.1').then(reg => {
                 if (isLocalhost) {
                     reg.update();
                 }
@@ -205,6 +210,753 @@
         } catch (err) {
             console.error('[Storage] Error al cargar:', err);
         }
+    }
+
+    // ─── BACKUP Y RECUPERACION ────────────────────────────────
+    const MAX_BACKUP_BYTES = 4.5 * 1024 * 1024;
+    const ESTADOS_VALIDOS_ENVIO = ['Pendiente', 'En Transito', 'Entregado', 'Cancelado'];
+
+    function esCoordArgentinaValida(c) {
+        return Array.isArray(c) &&
+            c.length >= 2 &&
+            typeof c[0] === 'number' && Number.isFinite(c[0]) &&
+            typeof c[1] === 'number' && Number.isFinite(c[1]) &&
+            c[0] >= -56.0 && c[0] <= -21.0 &&
+            c[1] >= -76.0 && c[1] <= -52.0;
+    }
+
+    function esFechaISOValida(val) {
+        if (typeof val !== 'string' || !val.trim()) return false;
+        const d = new Date(val);
+        return !isNaN(d.getTime());
+    }
+
+    function esFechaYYYYMMDDValida(val) {
+        if (typeof val !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(val.trim())) return false;
+        const [y, m, d] = val.trim().split('-').map(Number);
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        return dt.getUTCFullYear() === y && (dt.getUTCMonth() + 1) === m && dt.getUTCDate() === d;
+    }
+
+    function generarBackupPayload() {
+        const maxEnvioId = envios.reduce((max, e) => Math.max(max, Number(e?.id) || 0), 0);
+        const maxCamionId = camiones.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
+        const maxCnrId = camioneros.reduce((max, cnr) => Math.max(max, Number(cnr?.id) || 0), 0);
+
+        const contEnvios = Math.max(1, Number.isInteger(contadorId) ? contadorId : 1, maxEnvioId + 1);
+        const contCamiones = Math.max(1, Number.isInteger(contadorCamiones) ? contadorCamiones : 1, maxCamionId + 1);
+        const contCamioneros = Math.max(1, Number.isInteger(contadorCamioneros) ? contadorCamioneros : 1, maxCnrId + 1);
+
+        return {
+            schema: 'termate-backup',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            data: {
+                envios: JSON.parse(JSON.stringify(envios)),
+                camiones: JSON.parse(JSON.stringify(camiones)),
+                camioneros: JSON.parse(JSON.stringify(camioneros)),
+                contadores: {
+                    envios: contEnvios,
+                    camiones: contCamiones,
+                    camioneros: contCamioneros
+                }
+            }
+        };
+    }
+
+    function exportarBackupJSON() {
+        try {
+            const payload = generarBackupPayload();
+            const jsonStr = JSON.stringify(payload, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+            const filename = `termate-backup-${yyyy}-${mm}-${dd}.json`;
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            showToast('Copia de seguridad exportada correctamente.', 'success');
+            return { ok: true, filename };
+        } catch (err) {
+            showToast('Error al generar el archivo de respaldo.', 'error');
+            return { ok: false, error: err?.message || 'Error al exportar backup.' };
+        }
+    }
+
+    function validarBackupJSON(rawText) {
+        if (typeof rawText !== 'string' || !rawText.trim()) {
+            return { ok: false, error: 'El archivo esta vacio o no contiene texto legible.' };
+        }
+
+        const byteLen = typeof Blob !== 'undefined'
+            ? new Blob([rawText]).size
+            : (typeof Buffer !== 'undefined' ? Buffer.byteLength(rawText, 'utf8') : rawText.length * 2);
+        if (byteLen > MAX_BACKUP_BYTES) {
+            return { ok: false, error: 'El archivo supera el tamano maximo permitido (4.5 MB).' };
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(rawText);
+        } catch {
+            return { ok: false, error: 'El archivo no tiene un formato JSON valido.' };
+        }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return { ok: false, error: 'La estructura raiz del respaldo es invalida.' };
+        }
+
+        if (parsed.schema !== 'termate-backup') {
+            return { ok: false, error: 'El archivo no corresponde a un respaldo oficial de TerMate (schema invalido).' };
+        }
+
+        if (parsed.version !== 1) {
+            return { ok: false, error: `Version de respaldo no compatible (version recibida: ${String(parsed.version)}).` };
+        }
+
+        if (parsed.exportedAt !== undefined && parsed.exportedAt !== null) {
+            if (!esFechaISOValida(parsed.exportedAt)) {
+                return { ok: false, error: 'El campo "exportedAt" del respaldo tiene una fecha invalida.' };
+            }
+        }
+
+        const d = parsed.data;
+        if (!d || typeof d !== 'object' || Array.isArray(d)) {
+            return { ok: false, error: 'El bloque de datos ("data") no existe o es invalido.' };
+        }
+
+        if (!Array.isArray(d.envios) || !Array.isArray(d.camiones) || !Array.isArray(d.camioneros)) {
+            return { ok: false, error: 'Las colecciones "envios", "camiones" y "camioneros" deben ser listas validas.' };
+        }
+
+        const camionesNorm = [];
+        const idsCamiones = new Set();
+        for (let i = 0; i < d.camiones.length; i++) {
+            const item = d.camiones[i];
+            const ref = `camiones[pos ${i + 1}]`;
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return { ok: false, error: `Registro invalido en ${ref}: debe ser un objeto.` };
+            }
+            if (typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) {
+                return { ok: false, error: `ID invalido en ${ref}: debe ser un entero positivo.` };
+            }
+            const id = item.id;
+            if (idsCamiones.has(id)) {
+                return { ok: false, error: `ID duplicado en coleccion "camiones" (registro #${id}).` };
+            }
+            idsCamiones.add(id);
+
+            if (typeof item.nombre !== 'string' || !item.nombre.trim()) {
+                return { ok: false, error: `Coleccion "camiones" (registro #${id}): "nombre" es obligatorio.` };
+            }
+            if (item.patente !== undefined && item.patente !== null && typeof item.patente !== 'string') {
+                return { ok: false, error: `Coleccion "camiones" (registro #${id}): "patente" debe ser texto.` };
+            }
+            if (item.camionero !== undefined && item.camionero !== null && typeof item.camionero !== 'string') {
+                return { ok: false, error: `Coleccion "camiones" (registro #${id}): "camionero" debe ser texto.` };
+            }
+
+            let camioneroId = null;
+            if (item.camioneroId !== undefined && item.camioneroId !== null) {
+                if (typeof item.camioneroId !== 'number' || !Number.isInteger(item.camioneroId) || item.camioneroId <= 0) {
+                    return { ok: false, error: `Coleccion "camiones" (registro #${id}): "camioneroId" debe ser un entero positivo o null.` };
+                }
+                camioneroId = item.camioneroId;
+            }
+
+            const camposNumCamion = ['peso', 'alto', 'largo', 'ancho', 'consumoVacio', 'consumoLleno'];
+            for (const campo of camposNumCamion) {
+                if (typeof item[campo] !== 'number' || !Number.isFinite(item[campo]) || item[campo] <= 0) {
+                    return { ok: false, error: `Coleccion "camiones" (registro #${id}): "${campo}" debe ser un numero positivo.` };
+                }
+            }
+
+            camionesNorm.push({
+                ...item,
+                id,
+                nombre: item.nombre.trim(),
+                patente: typeof item.patente === 'string' ? item.patente.trim().toUpperCase() : '',
+                camionero: typeof item.camionero === 'string' ? item.camionero.trim() : '',
+                camioneroId,
+                peso: item.peso,
+                alto: item.alto,
+                largo: item.largo,
+                ancho: item.ancho,
+                consumoVacio: item.consumoVacio,
+                consumoLleno: item.consumoLleno
+            });
+        }
+
+        const camionerosNorm = [];
+        const idsCamioneros = new Set();
+        for (let i = 0; i < d.camioneros.length; i++) {
+            const item = d.camioneros[i];
+            const ref = `camioneros[pos ${i + 1}]`;
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return { ok: false, error: `Registro invalido en ${ref}: debe ser un objeto.` };
+            }
+            if (typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) {
+                return { ok: false, error: `ID invalido en ${ref}: debe ser un entero positivo.` };
+            }
+            const id = item.id;
+            if (idsCamioneros.has(id)) {
+                return { ok: false, error: `ID duplicado en coleccion "camioneros" (registro #${id}).` };
+            }
+            idsCamioneros.add(id);
+
+            if (typeof item.nombre !== 'string' || !item.nombre.trim()) {
+                return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "nombre" es obligatorio.` };
+            }
+
+            for (const campoStr of ['dni', 'tel', 'carnetNum']) {
+                if (item[campoStr] !== undefined && item[campoStr] !== null && typeof item[campoStr] !== 'string') {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "${campoStr}" debe ser texto.` };
+                }
+            }
+
+            if (item.ingreso !== undefined && item.ingreso !== null && item.ingreso !== '') {
+                if (!esFechaYYYYMMDDValida(item.ingreso)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "ingreso" tiene una fecha invalida.` };
+                }
+            }
+
+            if (item.carnetCat !== undefined && item.carnetCat !== null && item.carnetCat !== '') {
+                if (typeof item.carnetCat !== 'string' || !['C', 'D', 'E'].includes(item.carnetCat)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "carnetCat" debe ser C, D, E o vacio.` };
+                }
+            }
+
+            if (item.carnetVto !== undefined && item.carnetVto !== null && item.carnetVto !== '') {
+                if (!esFechaYYYYMMDDValida(item.carnetVto)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "carnetVto" tiene una fecha invalida.` };
+                }
+            }
+
+            let camionAsignadoId = null;
+            if (item.camionAsignadoId !== undefined && item.camionAsignadoId !== null) {
+                if (typeof item.camionAsignadoId !== 'number' || !Number.isInteger(item.camionAsignadoId) || item.camionAsignadoId <= 0) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "camionAsignadoId" debe ser un entero positivo o null.` };
+                }
+                camionAsignadoId = item.camionAsignadoId;
+            }
+
+            const capacitaciones = [];
+            if (item.capacitaciones !== undefined && item.capacitaciones !== null) {
+                if (!Array.isArray(item.capacitaciones)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "capacitaciones" debe ser una lista.` };
+                }
+                for (let j = 0; j < item.capacitaciones.length; j++) {
+                    const c = item.capacitaciones[j];
+                    if (!c || typeof c !== 'object' || Array.isArray(c) || typeof c.nombre !== 'string' || !c.nombre.trim()) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): capacitacion #${j + 1} invalida.` };
+                    }
+                    if (c.fecha !== undefined && c.fecha !== null && c.fecha !== '' && !esFechaYYYYMMDDValida(c.fecha)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): fecha invalida en capacitacion #${j + 1}.` };
+                    }
+                    capacitaciones.push({
+                        nombre: c.nombre.trim(),
+                        fecha: typeof c.fecha === 'string' ? c.fecha.trim() : ''
+                    });
+                }
+            }
+
+            const historial = [];
+            if (item.historial !== undefined && item.historial !== null) {
+                if (!Array.isArray(item.historial)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "historial" debe ser una lista.` };
+                }
+                for (let j = 0; j < item.historial.length; j++) {
+                    const h = item.historial[j];
+                    if (!h || typeof h !== 'object' || Array.isArray(h)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): evaluacion de historial #${j + 1} invalida.` };
+                    }
+                    if (!esFechaYYYYMMDDValida(h.fecha)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): fecha invalida en historial #${j + 1}.` };
+                    }
+                    if (!['si', 'parcial', 'no'].includes(h.ruta)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): valor "ruta" invalido en historial #${j + 1}.` };
+                    }
+                    if (!['puntual', 'leve', 'grave'].includes(h.puntualidad)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): valor "puntualidad" invalido en historial #${j + 1}.` };
+                    }
+                    if (!['si', 'no'].includes(h.bono)) {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): valor "bono" invalido en historial #${j + 1}.` };
+                    }
+                    if (h.incidencias !== undefined && h.incidencias !== null && typeof h.incidencias !== 'string') {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "incidencias" invalido en historial #${j + 1}.` };
+                    }
+                    if (h.obs !== undefined && h.obs !== null && typeof h.obs !== 'string') {
+                        return { ok: false, error: `Coleccion "camioneros" (registro #${id}): "obs" invalido en historial #${j + 1}.` };
+                    }
+                    historial.push({
+                        fecha: h.fecha.trim(),
+                        ruta: h.ruta,
+                        puntualidad: h.puntualidad,
+                        incidencias: typeof h.incidencias === 'string' ? h.incidencias : '',
+                        bono: h.bono,
+                        obs: typeof h.obs === 'string' ? h.obs : ''
+                    });
+                }
+            }
+
+            camionerosNorm.push({
+                ...item,
+                id,
+                nombre: item.nombre.trim(),
+                dni: typeof item.dni === 'string' ? item.dni.trim() : '',
+                tel: typeof item.tel === 'string' ? item.tel.trim() : '',
+                ingreso: typeof item.ingreso === 'string' ? item.ingreso.trim() : '',
+                carnetNum: typeof item.carnetNum === 'string' ? item.carnetNum.trim() : '',
+                carnetCat: typeof item.carnetCat === 'string' ? item.carnetCat : '',
+                carnetVto: typeof item.carnetVto === 'string' ? item.carnetVto.trim() : '',
+                camionAsignadoId,
+                capacitaciones,
+                historial
+            });
+        }
+
+        const enviosNorm = [];
+        const idsEnvios = new Set();
+        for (let i = 0; i < d.envios.length; i++) {
+            const item = d.envios[i];
+            const ref = `envios[pos ${i + 1}]`;
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return { ok: false, error: `Registro invalido en ${ref}: debe ser un objeto.` };
+            }
+            if (typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) {
+                return { ok: false, error: `ID invalido en ${ref}: debe ser un entero positivo.` };
+            }
+            const id = item.id;
+            if (idsEnvios.has(id)) {
+                return { ok: false, error: `ID duplicado en coleccion "envios" (registro #${id}).` };
+            }
+            idsEnvios.add(id);
+
+            if (typeof item.origen !== 'string' || !item.origen.trim() ||
+                typeof item.destino !== 'string' || !item.destino.trim() ||
+                typeof item.producto !== 'string' || !item.producto.trim()) {
+                return { ok: false, error: `Coleccion "envios" (registro #${id}): "origen", "destino" y "producto" son obligatorios.` };
+            }
+
+            if (typeof item.estado !== 'string' || !ESTADOS_VALIDOS_ENVIO.includes(item.estado)) {
+                return { ok: false, error: `Coleccion "envios" (registro #${id}): "estado" desconocido o invalido.` };
+            }
+
+            let pesoCarga = null;
+            if (item.pesoCarga !== undefined && item.pesoCarga !== null) {
+                if (typeof item.pesoCarga !== 'number' || !Number.isFinite(item.pesoCarga) || item.pesoCarga <= 0) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "pesoCarga" debe ser un numero positivo o null.` };
+                }
+                pesoCarga = item.pesoCarga;
+            }
+
+            let camionId = null;
+            if (item.camionId !== undefined && item.camionId !== null) {
+                if (typeof item.camionId !== 'number' || !Number.isInteger(item.camionId) || item.camionId <= 0) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "camionId" debe ser un entero positivo o null.` };
+                }
+                camionId = item.camionId;
+            }
+
+            if (typeof item.distancia !== 'number' || !Number.isFinite(item.distancia) || item.distancia < 0) {
+                return { ok: false, error: `Coleccion "envios" (registro #${id}): "distancia" debe ser un numero mayor o igual a 0.` };
+            }
+            if (typeof item.tiempo !== 'number' || !Number.isFinite(item.tiempo) || item.tiempo < 0) {
+                return { ok: false, error: `Coleccion "envios" (registro #${id}): "tiempo" debe ser un numero mayor o igual a 0.` };
+            }
+
+            if (item.fecha !== undefined && item.fecha !== null) {
+                if (!esFechaISOValida(item.fecha)) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "fecha" tiene un formato invalido.` };
+                }
+            }
+
+            for (const campoOpt of ['cliente', 'remito', 'camionNombre', 'camionPatente']) {
+                if (item[campoOpt] !== undefined && item[campoOpt] !== null && typeof item[campoOpt] !== 'string') {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "${campoOpt}" debe ser texto.` };
+                }
+            }
+
+            let coordsOrigen = undefined;
+            if (item.coordsOrigen !== undefined && item.coordsOrigen !== null) {
+                if (!esCoordArgentinaValida(item.coordsOrigen)) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "coordsOrigen" contiene coordenadas invalidas o fuera de rango.` };
+                }
+                coordsOrigen = [item.coordsOrigen[0], item.coordsOrigen[1]];
+            }
+
+            let coordsDestino = undefined;
+            if (item.coordsDestino !== undefined && item.coordsDestino !== null) {
+                if (!esCoordArgentinaValida(item.coordsDestino)) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "coordsDestino" contiene coordenadas invalidas o fuera de rango.` };
+                }
+                coordsDestino = [item.coordsDestino[0], item.coordsDestino[1]];
+            }
+
+            let coordsRuta = [];
+            if (item.coordsRuta !== undefined && item.coordsRuta !== null) {
+                if (!Array.isArray(item.coordsRuta)) {
+                    return { ok: false, error: `Coleccion "envios" (registro #${id}): "coordsRuta" debe ser una lista de coordenadas.` };
+                }
+                for (let p = 0; p < item.coordsRuta.length; p++) {
+                    if (!esCoordArgentinaValida(item.coordsRuta[p])) {
+                        return { ok: false, error: `Coleccion "envios" (registro #${id}): "coordsRuta" contiene un punto invalido en la posicion ${p + 1}.` };
+                    }
+                }
+                const copiaCoords = item.coordsRuta.map(c => [c[0], c[1]]);
+                coordsRuta = comprimirCoords(copiaCoords, 150);
+            }
+
+            const envioNormalizado = {
+                ...item,
+                id,
+                origen: item.origen.trim(),
+                destino: item.destino.trim(),
+                producto: item.producto.trim(),
+                estado: item.estado,
+                pesoCarga,
+                camionId,
+                distancia: item.distancia,
+                tiempo: item.tiempo,
+                cliente: typeof item.cliente === 'string' ? item.cliente.trim() : '',
+                remito: typeof item.remito === 'string' ? item.remito.trim() : '',
+                coordsRuta
+            };
+            if (coordsOrigen !== undefined) envioNormalizado.coordsOrigen = coordsOrigen;
+            else delete envioNormalizado.coordsOrigen;
+            if (coordsDestino !== undefined) envioNormalizado.coordsDestino = coordsDestino;
+            else delete envioNormalizado.coordsDestino;
+
+            enviosNorm.push(envioNormalizado);
+        }
+
+        // Consistencia referencial entre colecciones:
+        // Nota de diseno: al eliminar un camion en el runtime normal, envios.camionId y camioneros.camionAsignadoId
+        // se ponen en null, pero editar un chofer no limpia retroactivamente camion.camioneroId ni viceversa.
+        // Sin embargo, cualquier ID no nulo en un backup debe apuntar a un registro existente en su coleccion destino
+        // para evitar referencias rotas o corruptas inyectadas manualmente.
+        for (const env of enviosNorm) {
+            if (env.camionId !== null && !idsCamiones.has(env.camionId)) {
+                return { ok: false, error: `Coleccion "envios" (registro #${env.id}): "camionId" (#${env.camionId}) no corresponde a ningun camion del respaldo.` };
+            }
+        }
+        for (const cam of camionesNorm) {
+            if (cam.camioneroId !== null && !idsCamioneros.has(cam.camioneroId)) {
+                return { ok: false, error: `Coleccion "camiones" (registro #${cam.id}): "camioneroId" (#${cam.camioneroId}) no corresponde a ningun chofer del respaldo.` };
+            }
+        }
+        for (const cnr of camionerosNorm) {
+            if (cnr.camionAsignadoId !== null && !idsCamiones.has(cnr.camionAsignadoId)) {
+                return { ok: false, error: `Coleccion "camioneros" (registro #${cnr.id}): "camionAsignadoId" (#${cnr.camionAsignadoId}) no corresponde a ningun camion del respaldo.` };
+            }
+        }
+
+        const maxEnvioId = enviosNorm.reduce((max, e) => Math.max(max, e.id), 0);
+        const maxCamionId = camionesNorm.reduce((max, c) => Math.max(max, c.id), 0);
+        const maxCnrId = camionerosNorm.reduce((max, cnr) => Math.max(max, cnr.id), 0);
+
+        let rawCont = {};
+        if (d.contadores !== undefined && d.contadores !== null) {
+            if (typeof d.contadores !== 'object' || Array.isArray(d.contadores)) {
+                return { ok: false, error: 'El bloque "contadores" del respaldo debe ser un objeto valido.' };
+            }
+            rawCont = d.contadores;
+            for (const kCont of ['envios', 'camiones', 'camioneros']) {
+                if (rawCont[kCont] !== undefined && rawCont[kCont] !== null) {
+                    if (typeof rawCont[kCont] !== 'number' || !Number.isInteger(rawCont[kCont]) || rawCont[kCont] <= 0) {
+                        return { ok: false, error: `Contador invalido en "contadores.${kCont}": debe ser un entero positivo.` };
+                    }
+                }
+            }
+        }
+
+        const contadoresNorm = {
+            envios: Math.max(1, rawCont.envios || 1, maxEnvioId + 1),
+            camiones: Math.max(1, rawCont.camiones || 1, maxCamionId + 1),
+            camioneros: Math.max(1, rawCont.camioneros || 1, maxCnrId + 1)
+        };
+
+        const normalized = {
+            envios: enviosNorm,
+            camiones: camionesNorm,
+            camioneros: camionerosNorm,
+            contadores: contadoresNorm
+        };
+
+        const serializedSize = JSON.stringify(normalized).length * 2;
+        if (serializedSize > MAX_BACKUP_BYTES) {
+            return { ok: false, error: 'Los datos normalizados superan la cuota segura de almacenamiento local.' };
+        }
+
+        const resumen = {
+            exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : null,
+            totalEnvios: enviosNorm.length,
+            totalCamiones: camionesNorm.length,
+            totalCamioneros: camionerosNorm.length
+        };
+
+        return { ok: true, resumen, normalized };
+    }
+
+    // Nota: localStorage no ofrece transacciones atomicas multi-clave nativas.
+    // Se pre-serializan los valores y se toma snapshot previo para intentar rollback con verificacion lectura-tras-escritura.
+    function aplicarRestoreTransaccional(normalizedData) {
+        if (!normalizedData || typeof normalizedData !== 'object') {
+            return { ok: false, error: 'Datos normalizados invalidos para restaurar.' };
+        }
+
+        const claves = [
+            KEY_ENVIOS,
+            KEY_CONTADOR,
+            KEY_CAMIONES,
+            KEY_CONT_CAM,
+            KEY_CAMIONEROS,
+            KEY_CONT_CNR
+        ];
+
+        let payloadStrings;
+        try {
+            payloadStrings = {
+                [KEY_ENVIOS]:     JSON.stringify(normalizedData.envios),
+                [KEY_CONTADOR]:   String(normalizedData.contadores.envios),
+                [KEY_CAMIONES]:   JSON.stringify(normalizedData.camiones),
+                [KEY_CONT_CAM]:   String(normalizedData.contadores.camiones),
+                [KEY_CAMIONEROS]: JSON.stringify(normalizedData.camioneros),
+                [KEY_CONT_CNR]:   String(normalizedData.contadores.camioneros)
+            };
+        } catch {
+            showToast('Error al serializar los datos del respaldo.', 'error');
+            return { ok: false, error: 'No se pudieron preparar los datos para el almacenamiento.' };
+        }
+
+        const snapshotPrevio = {};
+        try {
+            claves.forEach(k => {
+                snapshotPrevio[k] = localStorage.getItem(k);
+            });
+        } catch {
+            showToast('No se pudo leer el almacenamiento local.', 'error');
+            return { ok: false, error: 'No se pudo acceder al almacenamiento local del navegador.' };
+        }
+
+        try {
+            claves.forEach(k => {
+                localStorage.setItem(k, payloadStrings[k]);
+            });
+        } catch {
+            const clavesFallidas = [];
+            claves.forEach(k => {
+                try {
+                    if (snapshotPrevio[k] === null || snapshotPrevio[k] === undefined) {
+                        localStorage.removeItem(k);
+                    } else {
+                        localStorage.setItem(k, snapshotPrevio[k]);
+                    }
+                } catch {}
+                try {
+                    const actual = localStorage.getItem(k);
+                    const esperado = snapshotPrevio[k] === undefined ? null : snapshotPrevio[k];
+                    if (actual !== esperado) {
+                        clavesFallidas.push(k);
+                    }
+                } catch {
+                    clavesFallidas.push(k);
+                }
+            });
+
+            if (clavesFallidas.length > 0) {
+                const listaClaves = clavesFallidas.join(', ');
+                const msgIncompleto = `Fallo la restauracion y el rollback fue incompleto en: ${listaClaves}. Recupera tus datos importando un backup exportado previamente.`;
+                showToast(msgIncompleto, 'error', { duration: 10000 });
+                return {
+                    ok: false,
+                    rollbackIncomplete: true,
+                    failedKeys: clavesFallidas,
+                    error: msgIncompleto
+                };
+            }
+
+            showToast('No se pudo completar el restore. Se verifico la restauracion de las claves previas.', 'error');
+            return {
+                ok: false,
+                rollbackIncomplete: false,
+                error: 'Espacio de almacenamiento insuficiente. Se restauraron y verificaron las claves previas.'
+            };
+        }
+
+        envios = normalizedData.envios;
+        contadorId = normalizedData.contadores.envios;
+        camiones = normalizedData.camiones;
+        contadorCamiones = normalizedData.contadores.camiones;
+        camioneros = normalizedData.camioneros;
+        contadorCamioneros = normalizedData.contadores.camioneros;
+
+        cancelarEdicion();
+        cerrarDetalle(true);
+        cerrarModalViaje(true);
+        cerrarModalCamion(true);
+        cerrarModalCamionero(true);
+        cerrarModalComportamiento(true);
+        cerrarPerfilCamionero(true);
+
+        renderListaCamiones();
+        renderListaCamioneros();
+        renderSelectCamioneros();
+        render();
+
+        showToast('Copia de seguridad restaurada con exito.', 'success');
+        return { ok: true };
+    }
+
+    // ─── BORRADOR LOCAL DE NUEVA RUTA ─────────────────────────
+    function guardarBorradorRuta() {
+        if (idEnvioEditando !== null) return;
+        try {
+            const origen = document.getElementById('origen')?.value || '';
+            const destino = document.getElementById('destino')?.value || '';
+            const producto = document.getElementById('producto')?.value || '';
+            const pesoCarga = document.getElementById('peso-carga')?.value || '';
+            const estado = document.getElementById('estado')?.value || 'Pendiente';
+            const camionId = document.getElementById('select-camion')?.value || '';
+
+            const tieneDatos = Boolean(origen.trim() || destino.trim() || producto.trim() || pesoCarga.trim() || camionId);
+            if (!tieneDatos) {
+                localStorage.removeItem(KEY_DRAFT_RUTA);
+                document.getElementById('draft-banner')?.classList.add('hidden');
+                return;
+            }
+
+            const draft = { origen, destino, producto, pesoCarga, estado, camionId, updatedAt: Date.now() };
+            localStorage.setItem(KEY_DRAFT_RUTA, JSON.stringify(draft));
+        } catch {}
+    }
+
+    function restaurarBorradorRuta() {
+        if (idEnvioEditando !== null) return;
+        try {
+            const raw = localStorage.getItem(KEY_DRAFT_RUTA);
+            if (!raw) return;
+            const draft = JSON.parse(raw);
+            if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
+                localStorage.removeItem(KEY_DRAFT_RUTA);
+                return;
+            }
+
+            const tieneContenido = Boolean(
+                (typeof draft.origen === 'string' && draft.origen.trim()) ||
+                (typeof draft.destino === 'string' && draft.destino.trim()) ||
+                (typeof draft.producto === 'string' && draft.producto.trim()) ||
+                (typeof draft.pesoCarga === 'string' && draft.pesoCarga.trim()) ||
+                (typeof draft.camionId === 'string' && draft.camionId)
+            );
+            if (!tieneContenido) {
+                localStorage.removeItem(KEY_DRAFT_RUTA);
+                return;
+            }
+
+            if (typeof draft.origen === 'string') document.getElementById('origen').value = draft.origen;
+            if (typeof draft.destino === 'string') document.getElementById('destino').value = draft.destino;
+            if (typeof draft.producto === 'string') document.getElementById('producto').value = draft.producto;
+            if (typeof draft.pesoCarga === 'string') document.getElementById('peso-carga').value = draft.pesoCarga;
+            if (typeof draft.estado === 'string' && ['Pendiente', 'En Transito', 'Entregado'].includes(draft.estado)) {
+                document.getElementById('estado').value = draft.estado;
+            }
+            if (typeof draft.camionId === 'string' && draft.camionId) {
+                const sel = document.getElementById('select-camion');
+                if (sel && camiones.some(c => String(c.id) === String(draft.camionId))) {
+                    sel.value = draft.camionId;
+                }
+            }
+
+            document.getElementById('draft-banner')?.classList.remove('hidden');
+        } catch {
+            try { localStorage.removeItem(KEY_DRAFT_RUTA); } catch {}
+        }
+    }
+
+    function limpiarBorradorRuta(mostrarAviso = false) {
+        try {
+            localStorage.removeItem(KEY_DRAFT_RUTA);
+        } catch {}
+        document.getElementById('draft-banner')?.classList.add('hidden');
+        if (mostrarAviso) {
+            document.getElementById('form-envio')?.reset();
+            limpiarErroresFormulario('form-envio');
+            document.getElementById('resultado-ruta')?.classList.add('hidden');
+            showToast('Borrador descartado.', 'info');
+        }
+    }
+
+    // ─── VALIDACION ACCESIBLE DE CAMPOS ───────────────────────
+    function actualizarAriaDescribedBy(input, errId, agregar) {
+        if (!input || !errId) return;
+        const actual = (input.getAttribute('aria-describedby') || '')
+            .split(/\s+/)
+            .filter(Boolean);
+        const sinErr = actual.filter(id => id !== errId);
+        if (agregar) sinErr.push(errId);
+        if (sinErr.length > 0) {
+            input.setAttribute('aria-describedby', sinErr.join(' '));
+        } else {
+            input.removeAttribute('aria-describedby');
+        }
+    }
+
+    function mostrarErrorCampo(inputId, errId, mensaje) {
+        const input = document.getElementById(inputId);
+        const errEl = document.getElementById(errId);
+        if (input) {
+            input.setAttribute('aria-invalid', 'true');
+            input.classList.add('input-error');
+            actualizarAriaDescribedBy(input, errId, true);
+        }
+        if (errEl) {
+            errEl.textContent = mensaje;
+            errEl.classList.remove('hidden');
+        }
+    }
+
+    function limpiarErrorCampo(inputId, errId) {
+        const input = document.getElementById(inputId);
+        const errEl = document.getElementById(errId);
+        if (input) {
+            input.removeAttribute('aria-invalid');
+            input.classList.remove('input-error');
+            actualizarAriaDescribedBy(input, errId, false);
+        }
+        if (errEl) {
+            errEl.textContent = '';
+            errEl.classList.add('hidden');
+        }
+    }
+
+    function limpiarErroresFormulario(formId) {
+        const form = document.getElementById(formId);
+        if (!form) return;
+        form.querySelectorAll('.field-error').forEach(errEl => {
+            const errId = errEl.id;
+            errEl.textContent = '';
+            errEl.classList.add('hidden');
+            if (errId) {
+                form.querySelectorAll(`[aria-describedby~="${errId}"]`).forEach(input => {
+                    actualizarAriaDescribedBy(input, errId, false);
+                });
+            }
+        });
+        form.querySelectorAll('[aria-invalid="true"], .input-error').forEach(el => {
+            el.removeAttribute('aria-invalid');
+            el.classList.remove('input-error');
+        });
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -476,7 +1228,7 @@
                     scrollWheelZoom: false,
                     dragging: !isMobile,
                     tap: true
-                }).setView([-38.4, -63.6], 5);
+                }).setView([-38.4, -63.6], 4);
                 cambiarCapaMapa(mapaInline, 'streets');
             } catch (err) {
                 console.error(err);
@@ -486,8 +1238,12 @@
         // Capas Mapa Full
         document.querySelectorAll('.map-layer-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.map-layer-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.setAttribute('aria-pressed', 'false');
+                });
                 btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
                 cambiarCapaMapa(mapaFull, btn.dataset.layer);
             });
         });
@@ -501,8 +1257,6 @@
             });
         });
 
-        // Buscador en mapa full
-        setupAutocompletado('map-search-input', 'map-search-sugerencias');
     }
 
     // ─── POIS DE ESTACIONES Y PARADORES ───────────────────────
@@ -565,14 +1319,20 @@
         const btn = document.getElementById(btnId);
 
         if (!estadosActivos[categoria]) {
-            if (btn) btn.classList.remove('active');
+            if (btn) {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-pressed', 'false');
+            }
             marcadoresObj[categoria].forEach(m => map.removeLayer(m));
             marcadoresObj[categoria] = [];
             showToast(`Ocultando ${categoria === 'gasolina' ? 'estaciones de servicio' : 'paradores de descanso'}.`, 'info');
             return;
         }
 
-        if (btn) btn.classList.add('active');
+        if (btn) {
+            btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
+        }
         const pois = POIS_ARGENTINA[categoria] || [];
         const icono = categoria === 'gasolina' ? crearIconoCombustible() : crearIconoComida();
 
@@ -740,7 +1500,7 @@
         const c = document.getElementById('lista-viajes');
         if (!c) return;
 
-        let lista = envios.slice().reverse();
+        let lista = envios.slice();
 
         if (filtroEstado !== 'todos') {
             lista = lista.filter(e => e.estado === filtroEstado);
@@ -748,22 +1508,63 @@
         if (filtroBuscar) {
             const q = filtroBuscar.toLowerCase();
             lista = lista.filter(e =>
-                e.origen.toLowerCase().includes(q) ||
-                e.destino.toLowerCase().includes(q) ||
-                e.producto.toLowerCase().includes(q) ||
+                (e.origen || '').toLowerCase().includes(q) ||
+                (e.destino || '').toLowerCase().includes(q) ||
+                (e.producto || '').toLowerCase().includes(q) ||
                 (e.cliente && e.cliente.toLowerCase().includes(q)) ||
                 (e.remito && e.remito.toLowerCase().includes(q))
             );
         }
 
+        // Ordenamiento determinista
+        const pesoEstado = { 'Pendiente': 1, 'En Transito': 2, 'Entregado': 3, 'Cancelado': 4 };
+        lista.sort((a, b) => {
+            const idA = Number(a?.id) || 0;
+            const idB = Number(b?.id) || 0;
+            if (ordenViajes === 'distancia-desc') {
+                const dA = Number.isFinite(Number(a?.distancia)) ? Number(a.distancia) : -1;
+                const dB = Number.isFinite(Number(b?.distancia)) ? Number(b.distancia) : -1;
+                if (dB !== dA) return dB - dA;
+                return idB - idA;
+            }
+            if (ordenViajes === 'distancia-asc') {
+                const dA = Number.isFinite(Number(a?.distancia)) ? Number(a.distancia) : Number.MAX_SAFE_INTEGER;
+                const dB = Number.isFinite(Number(b?.distancia)) ? Number(b.distancia) : Number.MAX_SAFE_INTEGER;
+                if (dA !== dB) return dA - dB;
+                return idB - idA;
+            }
+            if (ordenViajes === 'estado') {
+                const pA = pesoEstado[a?.estado] || 99;
+                const pB = pesoEstado[b?.estado] || 99;
+                if (pA !== pB) return pA - pB;
+                return idB - idA;
+            }
+            // Default: 'recientes' (ID / emision descendente)
+            return idB - idA;
+        });
+
         if (lista.length === 0) {
-            c.innerHTML = `<div class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:0.4;margin-bottom:8px">
-                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-                </svg>
-                <p>No se encontraron registros de viajes.</p>
-            </div>`;
+            const esListaTotalmenteVacia = envios.length === 0;
+            if (esListaTotalmenteVacia) {
+                c.innerHTML = `<div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:0.4;margin-bottom:8px">
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                    </svg>
+                    <p>Todavia no hay viajes registrados en el sistema.</p>
+                    <div class="empty-state-cta">
+                        <button type="button" class="btn-primary btn-cta-crear-viaje">Planificar Nueva Ruta</button>
+                    </div>
+                </div>`;
+            } else {
+                c.innerHTML = `<div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="opacity:0.4;margin-bottom:8px">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <p>No se encontraron viajes que coincidan con la busqueda o el filtro seleccionado.</p>
+                </div>`;
+            }
             return;
         }
 
@@ -944,12 +1745,20 @@
         });
 
         if (tabId === 'mapa' && mapaFull) {
-            setTimeout(() => mapaFull.invalidateSize(), 50);
-            setTimeout(() => mapaFull.invalidateSize(), 250);
+            setTimeout(() => {
+                mapaFull.invalidateSize();
+                actualizarMapa(mapaFull, marcadoresFull, polylinesFull, true);
+            }, 60);
+            setTimeout(() => {
+                mapaFull.invalidateSize();
+            }, 260);
         }
         if (tabId === 'nueva-ruta' && mapaInline) {
-            setTimeout(() => mapaInline.invalidateSize(), 50);
-            setTimeout(() => mapaInline.invalidateSize(), 250);
+            setTimeout(() => {
+                mapaInline.invalidateSize();
+                actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
+            }, 60);
+            setTimeout(() => mapaInline.invalidateSize(), 260);
         }
     }
 
@@ -975,14 +1784,30 @@
         return 'rojo';
     }
 
+    function evaluarEstadoLicencia(vto) {
+        if (!vto || typeof vto !== 'string' || !vto.trim()) {
+            return { clase: 'vto-unknown', estado: 'sin_fecha', dias: null };
+        }
+        const vtoDate = new Date(vto);
+        if (isNaN(vtoDate.getTime())) {
+            return { clase: 'vto-unknown', estado: 'fecha_invalida', dias: null };
+        }
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const diff = Math.ceil((vtoDate - hoy) / (1000 * 60 * 60 * 24));
+        if (diff < 0)  return { clase: 'vto-exp', estado: 'vencida', dias: diff };
+        if (diff <= 30) return { clase: 'vto-prox', estado: 'proxima', dias: diff };
+        return { clase: 'vto-ok', estado: 'vigente', dias: diff };
+    }
+
     function carnetVtoClass(vto) {
         if (!vto) return '';
-        const hoy = new Date();
         const vtoDate = new Date(vto);
         if (isNaN(vtoDate.getTime())) return 'vto-exp';
+        const hoy = new Date();
         const diff = (vtoDate - hoy) / (1000 * 60 * 60 * 24);
         if (diff < 0)  return 'vto-exp';
-        if (diff < 60) return 'vto-prox';
+        if (diff <= 30) return 'vto-prox';
         return 'vto-ok';
     }
 
@@ -1004,21 +1829,80 @@
     }
 
     // ─── RENDER CHOFERES ──────────────────────────────────────
+    function renderBannerLicencias() {
+        const banner = document.getElementById('licencias-alert-banner');
+        if (!banner) return;
+
+        const vencidas = [];
+        const proximas = [];
+        const sinFecha = [];
+
+        camioneros.forEach(cnr => {
+            const evalLic = evaluarEstadoLicencia(cnr.carnetVto);
+            if (evalLic.estado === 'vencida') {
+                vencidas.push(`${escapeHTML(cnr.nombre)} (${escapeHTML(cnr.carnetVto)})`);
+            } else if (evalLic.estado === 'proxima') {
+                proximas.push(`${escapeHTML(cnr.nombre)} (en ${evalLic.dias}d · ${escapeHTML(cnr.carnetVto)})`);
+            } else if (evalLic.estado === 'sin_fecha' || evalLic.estado === 'fecha_invalida') {
+                sinFecha.push(escapeHTML(cnr.nombre));
+            }
+        });
+
+        if (vencidas.length === 0 && proximas.length === 0 && sinFecha.length === 0) {
+            banner.classList.add('hidden');
+            banner.innerHTML = '';
+            return;
+        }
+
+        banner.classList.remove('hidden');
+        banner.classList.toggle('is-danger', vencidas.length > 0);
+
+        const partes = [];
+        if (vencidas.length > 0) {
+            partes.push(`<div><strong style="color:#f87171">Licencias vencidas (${vencidas.length}):</strong> ${vencidas.join(', ')}</div>`);
+        }
+        if (proximas.length > 0) {
+            partes.push(`<div><strong style="color:#fbbf24">Proximas a vencer en &le;30 dias (${proximas.length}):</strong> ${proximas.join(', ')}</div>`);
+        }
+        if (sinFecha.length > 0) {
+            partes.push(`<div><strong style="color:#cbd5e1">Fecha de vencimiento sin registrar o invalida (${sinFecha.length}):</strong> ${sinFecha.join(', ')}</div>`);
+        }
+
+        banner.innerHTML = `<div style="display:flex;flex-direction:column;gap:0.25rem;width:100%">${partes.join('')}</div>`;
+    }
+
     function renderListaCamioneros() {
         const c = document.getElementById('lista-camioneros');
         if (!c) return;
 
+        renderBannerLicencias();
+
         if (camioneros.length === 0) {
-            c.innerHTML = `<div class="empty-state"><p>No hay choferes registrados.</p></div>`;
+            c.innerHTML = `<div class="empty-state fleet-empty-state">
+                <div class="fleet-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+                <strong>La lista de choferes está vacía</strong>
+                <p>Registrá a los conductores para asignarlos a tus camiones y controlar sus licencias.</p>
+            </div>`;
             return;
         }
 
         c.innerHTML = camioneros.map(cnr => {
             const score = calcularScore(cnr);
-            const vtoClass = carnetVtoClass(cnr.carnetVto);
-            const vtoLabel = cnr.carnetVto
-                ? (vtoClass === 'vto-exp' ? 'Licencia Vencida' : vtoClass === 'vto-prox' ? 'Vence pronto' : `Cat. ${escapeHTML(cnr.carnetCat || 'E')} (Vigente)`)
-                : (cnr.carnetCat ? `Cat. ${escapeHTML(cnr.carnetCat)}` : 'Sin Licencia');
+            const evalLic = evaluarEstadoLicencia(cnr.carnetVto);
+            const vtoClass = evalLic.clase;
+            let vtoLabel = 'Sin fecha de vencimiento';
+            if (evalLic.estado === 'vencida') {
+                vtoLabel = 'Licencia Vencida';
+            } else if (evalLic.estado === 'proxima') {
+                vtoLabel = `Vence en ${evalLic.dias}d (<=30d)`;
+            } else if (evalLic.estado === 'vigente') {
+                vtoLabel = `Cat. ${escapeHTML(cnr.carnetCat || 'E')} (Vigente)`;
+            } else if (evalLic.estado === 'fecha_invalida') {
+                vtoLabel = 'Fecha de licencia invalida';
+            } else if (cnr.carnetCat) {
+                vtoLabel = `Cat. ${escapeHTML(cnr.carnetCat)} (Sin fecha vto.)`;
+            }
+
             const totalRegistros = (cnr.historial || []).length;
             const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
             const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
@@ -1027,8 +1911,8 @@
             const dniEsc = cnr.dni ? 'DNI ' + escapeHTML(cnr.dni) : (cnr.tel ? escapeHTML(cnr.tel) : 'Sin contacto');
             const camionAsigNom = camionAsig ? escapeHTML(camionAsig.nombre) : 'Sin camion fijo';
 
-            return `<div class="camionero-card" data-id="${cnr.id}" role="button" tabindex="0">
-                <button class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar">&times;</button>
+            return `<div class="camionero-card" data-id="${cnr.id}" tabindex="0">
+                <button type="button" class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar chofer ${nombreEsc}">&times;</button>
                 <div class="camionero-card-header">
                     <div class="camionero-avatar">${initials}</div>
                     <div class="camionero-info">
@@ -1038,7 +1922,7 @@
                     ${scoreRingHTML(score)}
                 </div>
                 <div class="camionero-meta">
-                    ${cnr.carnetNum || cnr.carnetCat ? `<span class="cnr-badge cnr-badge--carnet ${vtoClass}">${vtoLabel}</span>` : ''}
+                    <span class="cnr-badge cnr-badge--carnet ${vtoClass}">${vtoLabel}</span>
                     ${(cnr.capacitaciones || []).length > 0 ? `<span class="cnr-badge cnr-badge--caps">${cnr.capacitaciones.length} Certificaciones</span>` : ''}
                     ${bonos > 0 ? `<span class="cnr-badge cnr-badge--bono">${bonos} Bono${bonos > 1 ? 's' : ''}</span>` : ''}
                 </div>
@@ -1055,12 +1939,16 @@
         if (!c) return;
 
         if (camiones.length === 0) {
-            c.innerHTML = `<div class="empty-state"><p>No hay camiones registrados en la flota.</p></div>`;
+            c.innerHTML = `<div class="empty-state fleet-empty-state">
+                <div class="fleet-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="1" y="11" width="15" height="10" rx="1"/><path d="M16 11l4 3v7h-4V11z"/><circle cx="5.5" cy="21" r="1.5"/><circle cx="18.5" cy="21" r="1.5"/><path d="M1 8h9M1 5h6"/></svg></div>
+                <strong>La flota todavía está vacía</strong>
+                <p>Agregá un camión para guardar sus medidas, capacidad y consumo.</p>
+            </div>`;
             return;
         }
 
         c.innerHTML = camiones.map(cam => `
-            <div class="camion-card" data-id="${cam.id}" role="button" tabindex="0">
+            <div class="camion-card" data-id="${cam.id}" tabindex="0">
                 <div class="viaje-ruta">
                     <span>${escapeHTML(cam.nombre)}</span>
                     <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${escapeHTML(cam.patente || 'SIN PATENTE')}</span>
@@ -1074,7 +1962,7 @@
                     <span>Consumo vacio: ${escapeHTML(cam.consumoVacio)} L/100km</span>
                     <span>Consumo cargado: ${escapeHTML(cam.consumoLleno)} L/100km</span>
                 </div>
-                <button class="camionero-card-delete" data-id="${cam.id}" aria-label="Eliminar">&times;</button>
+                <button type="button" class="camionero-card-delete" data-id="${cam.id}" aria-label="Eliminar camion ${escapeHTML(cam.nombre)}">&times;</button>
             </div>
         `).join('');
     }
@@ -1108,7 +1996,93 @@
     // ═══════════════════════════════════════════════════════════
     // 10. MODALES Y EVENTOS
     // ═══════════════════════════════════════════════════════════
-    function abrirModalCamion(cam) {
+    function getModalActivo() {
+        const overlays = document.querySelectorAll('.modal-overlay:not(.hidden)');
+        return overlays.length > 0 ? overlays[overlays.length - 1] : null;
+    }
+
+    function esElementoEnfocableVisible(el) {
+        return Boolean(
+            el &&
+            typeof el.focus === 'function' &&
+            document.contains(el) &&
+            !el.closest('.hidden') &&
+            (el.offsetParent !== null || el === document.body)
+        );
+    }
+
+    function activarFocoModal(modalId, selectorPreferido = null, triggerExplicito = null) {
+        const modal = document.getElementById(modalId);
+        if (!modal || modal.classList.contains('hidden')) return;
+        const active = document.activeElement;
+        const origen = triggerExplicito ||
+            ((active && active !== document.body && !modal.contains(active)) ? active : null);
+        if (origen) {
+            modalFocusStack.set(modalId, origen);
+        }
+        setTimeout(() => {
+            if (modal.classList.contains('hidden')) return;
+            const target = (selectorPreferido && modal.querySelector(selectorPreferido)) ||
+                modal.querySelector('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not(.modal-close):not([disabled]), .modal-close');
+            target?.focus?.();
+        }, 20);
+    }
+
+    function restaurarFocoModal(modalId = null, omitirRestauracion = false) {
+        const trigger = modalId ? modalFocusStack.get(modalId) : null;
+        if (modalId) modalFocusStack.delete(modalId);
+        if (omitirRestauracion) return trigger || null;
+
+        const topModal = getModalActivo();
+        if (topModal) {
+            if (trigger && topModal.contains(trigger) && esElementoEnfocableVisible(trigger)) {
+                setTimeout(() => trigger.focus(), 10);
+            }
+            return trigger || null;
+        }
+
+        if (esElementoEnfocableVisible(trigger)) {
+            setTimeout(() => trigger.focus(), 10);
+        }
+        return trigger || null;
+    }
+
+    function abrirModalConfirm({ titulo, descHTML, extraHTML = '', textoConfirmar = 'Confirmar', claseConfirmar = 'btn-danger', onConfirm, triggerEl = null }) {
+        const modal = document.getElementById('modal-confirm');
+        if (!modal) return;
+        const elTitulo = document.getElementById('modal-confirm-titulo');
+        const elDesc = document.getElementById('modal-confirm-desc');
+        const elExtra = document.getElementById('modal-confirm-extra');
+        const btnAceptar = document.getElementById('btn-aceptar-confirm');
+
+        if (elTitulo) elTitulo.textContent = titulo || 'Confirmar accion';
+        if (elDesc) elDesc.innerHTML = descHTML || '';
+        if (elExtra) {
+            if (extraHTML) {
+                elExtra.innerHTML = extraHTML;
+                elExtra.classList.remove('hidden');
+            } else {
+                elExtra.innerHTML = '';
+                elExtra.classList.add('hidden');
+            }
+        }
+        if (btnAceptar) {
+            btnAceptar.textContent = textoConfirmar;
+            btnAceptar.className = claseConfirmar;
+        }
+
+        confirmCallback = typeof onConfirm === 'function' ? onConfirm : null;
+        modal.classList.remove('hidden');
+        activarFocoModal('modal-confirm', '#btn-cancelar-confirm', triggerEl);
+    }
+
+    function cerrarModalConfirm(omitirRestauracion = false) {
+        document.getElementById('modal-confirm')?.classList.add('hidden');
+        confirmCallback = null;
+        return restaurarFocoModal('modal-confirm', omitirRestauracion);
+    }
+
+    function abrirModalCamion(cam, triggerEl = null) {
         camionEditandoId = cam ? cam.id : null;
         document.getElementById('modal-camion-titulo').textContent = cam ? 'Editar Camion' : 'Nuevo Camion';
         document.getElementById('cam-id').value = cam ? cam.id : '';
@@ -1125,14 +2099,16 @@
         document.getElementById('cam-cons-vacio').value = cam?.consumoVacio || 24;
         document.getElementById('cam-cons-cargado').value = cam?.consumoLleno || 36;
         document.getElementById('modal-camion')?.classList.remove('hidden');
+        activarFocoModal('modal-camion', '#cam-nombre', triggerEl);
     }
 
-    function cerrarModalCamion() {
+    function cerrarModalCamion(omitirRestauracion = false) {
         document.getElementById('modal-camion')?.classList.add('hidden');
         camionEditandoId = null;
+        return restaurarFocoModal('modal-camion', omitirRestauracion);
     }
 
-    function abrirModalCamionero(cnr) {
+    function abrirModalCamionero(cnr, triggerEl = null) {
         capsTemp = cnr ? [...(cnr.capacitaciones || [])] : [];
         camioneroEditandoId = cnr ? cnr.id : null;
         document.getElementById('modal-camionero-titulo').textContent = cnr ? 'Editar Chofer' : 'Nuevo Chofer';
@@ -1153,12 +2129,14 @@
 
         renderCapsTemp();
         document.getElementById('modal-camionero')?.classList.remove('hidden');
+        activarFocoModal('modal-camionero', '#cnr-nombre', triggerEl);
     }
 
-    function cerrarModalCamionero() {
+    function cerrarModalCamionero(omitirRestauracion = false) {
         document.getElementById('modal-camionero')?.classList.add('hidden');
         camioneroEditandoId = null;
         capsTemp = [];
+        return restaurarFocoModal('modal-camionero', omitirRestauracion);
     }
 
     function renderCapsTemp() {
@@ -1171,34 +2149,42 @@
         lista.innerHTML = capsTemp.map((cap, i) => `
             <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:4px;margin-bottom:4px;font-size:0.8rem">
                 <span><strong>${escapeHTML(cap.nombre)}</strong> ${cap.fecha ? '· ' + escapeHTML(cap.fecha) : ''}</span>
-                <button type="button" class="cap-item-del" data-cap-idx="${i}" style="background:none;border:none;color:var(--c-danger);cursor:pointer;font-size:1.1rem">&times;</button>
+                <button type="button" class="cap-item-del" data-cap-idx="${i}" style="background:none;border:none;color:var(--c-danger);cursor:pointer;font-size:1.1rem" aria-label="Quitar certificacion ${escapeHTML(cap.nombre)}">&times;</button>
             </div>
         `).join('');
     }
 
-    function abrirModalComportamiento(camioneroId) {
+    function abrirModalComportamiento(camioneroId, triggerEl = null) {
         document.getElementById('comp-camionero-id').value = camioneroId;
         document.getElementById('form-comportamiento')?.reset();
         document.getElementById('comp-camionero-id').value = camioneroId;
         document.getElementById('comp-fecha').value = new Date().toISOString().split('T')[0];
         document.getElementById('modal-comportamiento')?.classList.remove('hidden');
+        activarFocoModal('modal-comportamiento', '#comp-fecha', triggerEl);
     }
 
-    function cerrarModalComportamiento() {
+    function cerrarModalComportamiento(omitirRestauracion = false) {
         document.getElementById('modal-comportamiento')?.classList.add('hidden');
+        return restaurarFocoModal('modal-comportamiento', omitirRestauracion);
     }
 
-    function abrirPerfilCamionero(id) {
+    function abrirPerfilCamionero(id, triggerEl = null) {
         const cnr = camioneros.find(c => c.id === id);
         if (!cnr) return;
         camioneroPerfilId = id;
 
         const score = calcularScore(cnr);
-        const cls = scoreClass(score);
         const historial = [...(cnr.historial || [])].reverse();
         const bonos = (cnr.historial || []).filter(h => h.bono === 'si').length;
         const camionAsig = cnr.camionAsignadoId ? camiones.find(c => c.id === cnr.camionAsignadoId) : null;
-        const initials = escapeHTML((cnr.nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase());
+        const evalLic = evaluarEstadoLicencia(cnr.carnetVto);
+        const estadoLicTxt = evalLic.estado === 'vencida'
+            ? 'Vencida'
+            : evalLic.estado === 'proxima'
+                ? `Proxima a vencer (${evalLic.dias} dias)`
+                : evalLic.estado === 'vigente'
+                    ? 'Vigente'
+                    : 'Fecha sin registrar / desconocida';
 
         const cont = document.getElementById('perfil-contenido');
         if (!cont) return;
@@ -1217,14 +2203,14 @@
                 ${cnr.dni ? `<div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val">${escapeHTML(cnr.dni)}</span></div>` : ''}
                 ${cnr.tel ? `<div class="detail-row"><span class="detail-key">Telefono</span><span class="detail-val">${escapeHTML(cnr.tel)}</span></div>` : ''}
                 ${cnr.carnetNum ? `<div class="detail-row"><span class="detail-key">N° Licencia</span><span class="detail-val">${escapeHTML(cnr.carnetNum)} (Cat. ${escapeHTML(cnr.carnetCat || 'E')})</span></div>` : ''}
-                ${cnr.carnetVto ? `<div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${escapeHTML(cnr.carnetVto)}</span></div>` : ''}
+                <div class="detail-row"><span class="detail-key">Vencimiento</span><span class="detail-val">${cnr.carnetVto ? escapeHTML(cnr.carnetVto) : 'No registrado'} (${estadoLicTxt})</span></div>
                 ${camionAsig ? `<div class="detail-row"><span class="detail-key">Camion</span><span class="detail-val">${escapeHTML(camionAsig.nombre)}</span></div>` : ''}
             </div>
 
             <div class="form-section-label" style="margin-top:1.25rem">Historial de Despachos (${historial.length})</div>
             <div style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;margin-top:0.5rem">
                 ${historial.length === 0 ? '<div style="font-size:0.8rem;color:var(--c-text-muted)">Sin registros aun.</div>' :
-                    historial.map((r, i) => `
+                    historial.map(r => `
                         <div style="background:var(--c-card);padding:8px 10px;border-radius:6px;border:1px solid var(--c-border);font-size:0.78rem;display:flex;justify-content:space-between;align-items:center">
                             <div>
                                 <strong>${escapeHTML(r.fecha)}</strong> · Ruta: ${r.ruta === 'si' ? 'Cumplio' : 'Desvio'} · ${escapeHTML(r.puntualidad)}
@@ -1237,54 +2223,115 @@
         `;
 
         document.getElementById('modal-perfil-camionero')?.classList.remove('hidden');
+        activarFocoModal('modal-perfil-camionero', '#btn-perfil-nuevo-registro', triggerEl);
     }
 
-    function cerrarPerfilCamionero() {
+    function cerrarPerfilCamionero(omitirRestauracion = false) {
         document.getElementById('modal-perfil-camionero')?.classList.add('hidden');
         camioneroPerfilId = null;
+        return restaurarFocoModal('modal-perfil-camionero', omitirRestauracion);
     }
 
     // ─── MODAL DETALLE VIAJE ──────────────────────────────────
-    function abrirDetalle(id) {
+    function renderDetalleContenido() {
+        const e = envios.find(x => x.id === idEnvioDetalle);
+        const cont = document.getElementById('detalle-contenido');
+        if (!e || !cont) return;
+        const camion = e.camionId ? camiones.find(c => String(c.id) === String(e.camionId)) : null;
+        const camionLabel = camion
+            ? `${camion.nombre} (${camion.patente || 'S/P'})`
+            : e.camionNombre
+                ? `${e.camionNombre} (${e.camionPatente || 'S/P'} · histórico)`
+                : 'Sin camión asignado';
+        cont.innerHTML = [
+            ['Origen de Carga', e.origen],
+            ['Destino de Descarga', e.destino],
+            ['Descripcion de Carga', e.producto],
+            e.pesoCarga ? ['Peso', `${e.pesoCarga} tn`] : null,
+            ['Distancia Estimada', formatoDistancia(e.distancia)],
+            ['Tiempo Estimado', formatoTiempo(e.tiempo)],
+            (e.distancia !== null && e.distancia !== undefined) ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
+            ['Estado', e.estado],
+            ['Camión asignado', camionLabel],
+            camion?.camionero ? ['Chofer', camion.camionero] : null,
+            e.cliente ? ['Cliente / Receptor', e.cliente] : null,
+            e.remito ? ['N° Remito Oficial', e.remito] : null
+        ].filter(Boolean).map(([k, v]) => `
+            <div class="detail-row">
+                <span class="detail-key">${escapeHTML(k)}</span>
+                <span class="detail-val">${escapeHTML(v)}</span>
+            </div>
+        `).join('');
+    }
+
+    function abrirEdicionDetalle() {
+        const e = envios.find(x => x.id === idEnvioDetalle);
+        if (!e) return;
+        const form = document.getElementById('form-detalle-edicion');
+        const modal = document.getElementById('modal-detalle');
+        if (!form || !modal) return;
+
+        document.getElementById('det-origen').value = e.origen || '';
+        document.getElementById('det-destino').value = e.destino || '';
+        document.getElementById('det-producto').value = e.producto || '';
+        document.getElementById('det-peso').value = e.pesoCarga ?? '';
+        const estadoEdit = document.getElementById('det-estado');
+        if (e.estado === 'Cancelado' && !estadoEdit.querySelector('option[value="Cancelado"]')) {
+            estadoEdit.add(new Option('Cancelado', 'Cancelado'));
+        } else if (e.estado !== 'Cancelado') {
+            estadoEdit.querySelector('option[value="Cancelado"]')?.remove();
+        }
+        estadoEdit.value = e.estado || 'Pendiente';
+        document.getElementById('det-cliente').value = e.cliente || '';
+        document.getElementById('det-remito').value = e.remito || '';
+
+        const selCamion = document.getElementById('det-camion');
+        selCamion.innerHTML = '<option value="">Sin asignar</option>' + camiones.map(c =>
+            `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`
+        ).join('');
+        selCamion.value = e.camionId || '';
+        document.getElementById('det-edit-error').classList.add('hidden');
+        form.classList.remove('hidden');
+        modal.classList.add('is-editing');
+        detalleModoEdicion = true;
+        document.getElementById('det-origen').focus();
+    }
+
+    function cancelarEdicionDetalle() {
+        detalleModoEdicion = false;
+        document.getElementById('form-detalle-edicion')?.classList.add('hidden');
+        document.getElementById('modal-detalle')?.classList.remove('is-editing');
+        document.getElementById('btn-detalle-editar')?.focus();
+    }
+
+    function abrirDetalle(id, triggerEl = null) {
         const e = envios.find(x => x.id === id);
         if (!e) return;
         idEnvioDetalle = id;
-
-        const cont = document.getElementById('detalle-contenido');
-        if (cont) {
-            const camion = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
-            cont.innerHTML = [
-                ['Origen de Carga', e.origen],
-                ['Destino de Descarga', e.destino],
-                ['Descripcion de Carga', e.producto],
-                e.pesoCarga ? ['Peso', `${e.pesoCarga} tn`] : null,
-                ['Distancia Estimada', formatoDistancia(e.distancia)],
-                ['Tiempo Estimado', formatoTiempo(e.tiempo)],
-                (e.distancia !== null && e.distancia !== undefined) ? ['Consumo Estimado', formatoFuel(e.distancia, e.pesoCarga, e.camionId) || '—'] : null,
-                ['Estado', e.estado],
-                camion ? ['Camion Asignado', `${camion.nombre} (${camion.patente || 'S/P'})`] : null,
-                camion?.camionero ? ['Chofer', camion.camionero] : null,
-                e.cliente ? ['Cliente / Receptor', e.cliente] : null,
-                e.remito ? ['N° Remito Oficial', e.remito] : null
-            ].filter(Boolean).map(([k, v]) => `
-                <div class="detail-row">
-                    <span class="detail-key">${escapeHTML(k)}</span>
-                    <span class="detail-val">${escapeHTML(v)}</span>
-                </div>
-            `).join('');
-        }
-
+        detalleModoEdicion = false;
+        document.getElementById('form-detalle-edicion')?.classList.add('hidden');
+        document.getElementById('modal-detalle')?.classList.remove('is-editing');
+        document.getElementById('detalle-estado-editor')?.classList.add('hidden');
+        renderDetalleContenido();
         document.getElementById('modal-detalle')?.classList.remove('hidden');
+        activarFocoModal('modal-detalle', '#btn-detalle-ver-mapa', triggerEl);
     }
 
-    function cerrarDetalle() {
+    function cerrarDetalle(omitirRestauracion = false) {
         document.getElementById('modal-detalle')?.classList.add('hidden');
+        document.getElementById('modal-detalle')?.classList.remove('is-editing');
+        document.getElementById('form-detalle-edicion')?.classList.add('hidden');
+        document.getElementById('detalle-estado-editor')?.classList.add('hidden');
+        detalleModoEdicion = false;
         idEnvioDetalle = null;
+        return restaurarFocoModal('modal-detalle', omitirRestauracion);
     }
 
-    function abrirModalViaje(envioExistente) {
+    function abrirModalViaje(envioExistente, triggerEl = null) {
         const m = document.getElementById('modal-viaje');
         if (!m) return;
+
+        limpiarErroresFormulario('form-viaje');
 
         const vjSel = document.getElementById('vj-select-camion');
         if (vjSel) {
@@ -1304,22 +2351,27 @@
         }
 
         m.classList.remove('hidden');
+        activarFocoModal('modal-viaje', '#vj-cliente', triggerEl);
     }
 
-    function cerrarModalViaje() {
+    function cerrarModalViaje(omitirRestauracion = false) {
         document.getElementById('modal-viaje')?.classList.add('hidden');
+        limpiarErroresFormulario('form-viaje');
         idEnvioEditando = null;
         rutaPendiente = null;
         if (mapaInline) {
             actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
         }
+        return restaurarFocoModal('modal-viaje', omitirRestauracion);
     }
 
     function iniciarEdicion(id) {
         const e = envios.find(x => x.id === id);
         if (!e) return;
         idEnvioEditando = id;
-        cerrarDetalle();
+        cerrarDetalle(true);
+        limpiarErroresFormulario('form-envio');
+        document.getElementById('draft-banner')?.classList.add('hidden');
 
         document.getElementById('origen').value = e.origen;
         document.getElementById('destino').value = e.destino;
@@ -1339,11 +2391,13 @@
         idEnvioEditando = null;
         rutaPendiente = null;
         document.getElementById('form-envio')?.reset();
+        limpiarErroresFormulario('form-envio');
         document.getElementById('form-titulo').textContent = 'Nueva Ruta de Transporte';
         document.getElementById('btn-submit-texto').textContent = 'Calcular Ruta y Emitir';
         document.getElementById('btn-cancelar-edicion').classList.add('hidden');
         document.getElementById('resultado-ruta')?.classList.add('hidden');
         renderSelectCamiones();
+        restaurarBorradorRuta();
         if (mapaInline) {
             actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
         }
@@ -1353,6 +2407,50 @@
     // 11. BINDING DE EVENTOS
     // ═══════════════════════════════════════════════════════════
     function bindEvents() {
+        // Limpiar errores inline al escribir o cambiar campos y persistir borrador en Nueva Ruta
+        const camposFormEnvio = [
+            ['origen', 'err-origen'],
+            ['destino', 'err-destino'],
+            ['producto', 'err-producto'],
+            ['select-camion', 'err-select-camion']
+        ];
+        camposFormEnvio.forEach(([inputId, errId]) => {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const handler = () => {
+                if (el.value.trim()) limpiarErrorCampo(inputId, errId);
+                guardarBorradorRuta();
+            };
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+        });
+
+        ['peso-carga', 'estado'].forEach(fid => {
+            const el = document.getElementById(fid);
+            if (!el) return;
+            el.addEventListener('input', guardarBorradorRuta);
+            el.addEventListener('change', guardarBorradorRuta);
+        });
+
+        document.getElementById('btn-descartar-borrador')?.addEventListener('click', () => {
+            limpiarBorradorRuta(true);
+        });
+
+        // Limpiar errores inline en modal de emision de viaje
+        [
+            ['vj-select-camion', 'err-vj-select-camion'],
+            ['vj-cliente', 'err-vj-cliente'],
+            ['vj-remito', 'err-vj-remito']
+        ].forEach(([inputId, errId]) => {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const handler = () => {
+                if (el.value.trim()) limpiarErrorCampo(inputId, errId);
+            };
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+        });
+
         // Envio de formulario de ruta
         const formEnvio = document.getElementById('form-envio');
         formEnvio?.addEventListener('submit', async e => {
@@ -1364,12 +2462,28 @@
             const estado = document.getElementById('estado').value;
             const camionId = parseInt(document.getElementById('select-camion').value) || null;
 
-            if (!origen || !destino || !producto) {
-                showToast('Completa origen, destino y carga.', 'error');
-                return;
+            limpiarErroresFormulario('form-envio');
+            let primerInvalido = null;
+
+            if (!origen) {
+                mostrarErrorCampo('origen', 'err-origen', 'Ingresa el punto de origen de la carga.');
+                if (!primerInvalido) primerInvalido = document.getElementById('origen');
+            }
+            if (!destino) {
+                mostrarErrorCampo('destino', 'err-destino', 'Ingresa el punto de destino de la descarga.');
+                if (!primerInvalido) primerInvalido = document.getElementById('destino');
+            }
+            if (!producto) {
+                mostrarErrorCampo('producto', 'err-producto', 'Describe el producto o tipo de mercaderia.');
+                if (!primerInvalido) primerInvalido = document.getElementById('producto');
             }
             if (!camionId) {
-                showToast('Selecciona un camion para asignar la ruta.', 'error');
+                mostrarErrorCampo('select-camion', 'err-select-camion', 'Selecciona un camion de la flota para este despacho.');
+                if (!primerInvalido) primerInvalido = document.getElementById('select-camion');
+            }
+
+            if (primerInvalido) {
+                primerInvalido.focus();
                 return;
             }
 
@@ -1453,10 +2567,83 @@
             btn.addEventListener('click', () => irASubTab(btn.dataset.subtab));
         });
 
+        // Backup & Restore JSON
+        let lastImportBtnTrigger = null;
+        const triggerExport = () => exportarBackupJSON();
+        const triggerImport = e => {
+            lastImportBtnTrigger = e?.currentTarget || document.activeElement;
+            const fileInput = document.getElementById('input-file-backup');
+            if (fileInput) {
+                fileInput.value = '';
+                fileInput.click();
+            }
+        };
+        document.getElementById('btn-exportar-backup')?.addEventListener('click', triggerExport);
+        document.getElementById('btn-exportar-backup-mobile')?.addEventListener('click', triggerExport);
+        document.getElementById('btn-importar-backup')?.addEventListener('click', triggerImport);
+        document.getElementById('btn-importar-backup-mobile')?.addEventListener('click', triggerImport);
+
+        document.getElementById('input-file-backup')?.addEventListener('change', async e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                if (file.size > MAX_BACKUP_BYTES) {
+                    showToast('El archivo supera el limite de 4.5 MB.', 'error');
+                    return;
+                }
+                const rawText = await file.text();
+                const validacion = validarBackupJSON(rawText);
+                if (!validacion.ok) {
+                    showToast(validacion.error, 'error');
+                    return;
+                }
+
+                const { resumen, normalized } = validacion;
+                const fechaExp = resumen.exportedAt
+                    ? new Date(resumen.exportedAt).toLocaleString('es-AR')
+                    : 'No especificada';
+
+                abrirModalConfirm({
+                    titulo: 'Restaurar copia de seguridad',
+                    descHTML: `Se validaron los datos del archivo <strong>${escapeHTML(file.name)}</strong>. Confirma si deseas reemplazar los datos actuales por este respaldo:`,
+                    extraHTML: `
+                        <div class="backup-summary-box">
+                            <div><strong>Fecha del respaldo:</strong> ${escapeHTML(fechaExp)}</div>
+                            <div><strong>Viajes y remitos:</strong> ${resumen.totalEnvios} registros</div>
+                            <div><strong>Camiones de flota:</strong> ${resumen.totalCamiones} unidades</div>
+                            <div><strong>Plantel de choferes:</strong> ${resumen.totalCamioneros} choferes</div>
+                        </div>
+                        <div class="confirm-consequences" style="margin-top:0.5rem">
+                            Esta accion reemplazara los viajes, camiones y choferes actuales en el almacenamiento local. Si ocurre un error de cuota, se intentara restaurar y verificar el estado previo.
+                        </div>
+                    `,
+                    textoConfirmar: 'Restaurar Datos',
+                    claseConfirmar: 'btn-primary',
+                    triggerEl: lastImportBtnTrigger,
+                    onConfirm: () => {
+                        aplicarRestoreTransaccional(normalized);
+                    }
+                });
+            } catch {
+                showToast('No se pudo leer el archivo seleccionado.', 'error');
+            } finally {
+                e.target.value = '';
+            }
+        });
+
+        // Modal Confirmacion Universal
+        document.getElementById('btn-cerrar-confirm')?.addEventListener('click', () => cerrarModalConfirm());
+        document.getElementById('btn-cancelar-confirm')?.addEventListener('click', () => cerrarModalConfirm());
+        document.getElementById('btn-aceptar-confirm')?.addEventListener('click', () => {
+            const fn = confirmCallback;
+            cerrarModalConfirm();
+            if (typeof fn === 'function') fn();
+        });
+
         // Camiones
         document.getElementById('btn-nuevo-camion')?.addEventListener('click', () => abrirModalCamion(null));
-        document.getElementById('btn-cerrar-camion')?.addEventListener('click', cerrarModalCamion);
-        document.getElementById('btn-cancelar-camion')?.addEventListener('click', cerrarModalCamion);
+        document.getElementById('btn-cerrar-camion')?.addEventListener('click', () => cerrarModalCamion());
+        document.getElementById('btn-cancelar-camion')?.addEventListener('click', () => cerrarModalCamion());
 
         document.getElementById('lista-camiones')?.addEventListener('click', e => {
             const card = e.target.closest('.camion-card');
@@ -1464,32 +2651,86 @@
             const id = Number(card.dataset.id);
             const btnDel = e.target.closest('.camionero-card-delete');
             if (btnDel) {
-                if (!confirm('¿Seguro que deseas eliminar este camion de la flota?')) return;
-
                 const camion = camiones.find(c => c.id === id);
+                if (!camion) return;
 
-                // Desvincular en cascada y guardar snapshot historico
-                envios.forEach(e => {
-                    if (e.camionId === id) {
-                        if (camion) {
-                            e.camionNombre = camion.nombre;
-                            e.camionPatente = camion.patente;
-                        }
-                        e.camionId = null;
+                const viajesVinc = envios.filter(env => env.camionId === id).length;
+                const choferesVinc = camioneros.filter(cnr => cnr.camionAsignadoId === id).length;
+                const detallesDesvinc = [];
+                if (viajesVinc > 0) detallesDesvinc.push(`${viajesVinc} viaje(s) conservaran el nombre historico pero quedaran sin camion activo asignado`);
+                if (choferesVinc > 0) detallesDesvinc.push(`${choferesVinc} chofer(es) quedaran sin unidad fija asignada`);
+
+                abrirModalConfirm({
+                    titulo: 'Eliminar camion de la flota',
+                    descHTML: `¿Confirmas la baja del camion <strong>${escapeHTML(camion.nombre)}</strong> (${escapeHTML(camion.patente || 'S/P')})?`,
+                    extraHTML: detallesDesvinc.length > 0
+                        ? `<div class="confirm-consequences"><strong>Impacto en relaciones:</strong> ${detallesDesvinc.join('; ')}.</div>`
+                        : `<div class="confirm-consequences">Esta unidad no tiene viajes ni choferes vinculados actualmente.</div>`,
+                    textoConfirmar: 'Eliminar Camion',
+                    claseConfirmar: 'btn-danger',
+                    onConfirm: () => {
+                        const enviosVinculados = envios
+                            .filter(env => env.camionId === id)
+                            .map(env => ({ id: env.id, camionId: env.camionId, camionNombre: env.camionNombre, camionPatente: env.camionPatente }));
+                        const choferesVinculados = camioneros
+                            .filter(cnr => cnr.camionAsignadoId === id)
+                            .map(cnr => ({ id: cnr.id, camionAsignadoId: cnr.camionAsignadoId }));
+                        const camionEliminado = JSON.parse(JSON.stringify(camion));
+
+                        envios.forEach(env => {
+                            if (env.camionId === id) {
+                                env.camionNombre = camion.nombre;
+                                env.camionPatente = camion.patente;
+                                env.camionId = null;
+                            }
+                        });
+                        camioneros.forEach(cnr => {
+                            if (cnr.camionAsignadoId === id) cnr.camionAsignadoId = null;
+                        });
+
+                        camiones = camiones.filter(c => c.id !== id);
+                        guardar();
+                        actualizarKPIs();
+                        renderListaCamiones();
+                        renderSelectCamiones();
+                        renderListaCamioneros();
+                        renderListaViajes();
+                        showToast('Camión eliminado de la flota.', 'warning', {
+                            actionText: 'Deshacer',
+                            duration: 15000,
+                            onAction: () => {
+                                if (camiones.some(c => c.id === camionEliminado.id)) {
+                                    showToast('El camión ya existe en la flota; no se duplicó.', 'info');
+                                    return;
+                                }
+                                camiones.push(camionEliminado);
+                                camiones.sort((a, b) => Number(a.id) - Number(b.id));
+                                enviosVinculados.forEach(snapshot => {
+                                    const envio = envios.find(env => env.id === snapshot.id);
+                                    if (!envio || envio.camionId !== null) return;
+                                    envio.camionId = snapshot.camionId;
+                                    if (snapshot.camionNombre === undefined) delete envio.camionNombre;
+                                    else envio.camionNombre = snapshot.camionNombre;
+                                    if (snapshot.camionPatente === undefined) delete envio.camionPatente;
+                                    else envio.camionPatente = snapshot.camionPatente;
+                                });
+                                choferesVinculados.forEach(snapshot => {
+                                    const choferActual = camioneros.find(cnr => cnr.id === snapshot.id);
+                                    if (choferActual && choferActual.camionAsignadoId === null) {
+                                        choferActual.camionAsignadoId = snapshot.camionAsignadoId;
+                                    }
+                                });
+                                contadorCamiones = Math.max(contadorCamiones, (Number(camionEliminado.id) || 0) + 1);
+                                guardar();
+                                renderListaCamiones();
+                                renderSelectCamiones();
+                                renderListaCamioneros();
+                                render();
+                                showToast('Camión restaurado con sus asignaciones disponibles.', 'success');
+                            }
+                        });
                     }
                 });
-                camioneros.forEach(cnr => {
-                    if (cnr.camionAsignadoId === id) cnr.camionAsignadoId = null;
-                });
-
-                camiones = camiones.filter(c => c.id !== id);
-                guardar();
-                actualizarKPIs();
-                renderListaCamiones();
-                renderSelectCamiones();
-                renderListaCamioneros();
-                renderListaViajes();
-                showToast('Camion eliminado.', 'info');
                 return;
             }
             const camion = camiones.find(c => c.id === id);
@@ -1519,6 +2760,7 @@
 
             if (!nombre) {
                 showToast('Ingresa un nombre para el camion.', 'error');
+                document.getElementById('cam-nombre')?.focus();
                 return;
             }
 
@@ -1553,8 +2795,8 @@
 
         // Choferes
         document.getElementById('btn-nuevo-camionero')?.addEventListener('click', () => abrirModalCamionero(null));
-        document.getElementById('btn-cerrar-camionero')?.addEventListener('click', cerrarModalCamionero);
-        document.getElementById('btn-cancelar-camionero')?.addEventListener('click', cerrarModalCamionero);
+        document.getElementById('btn-cerrar-camionero')?.addEventListener('click', () => cerrarModalCamionero());
+        document.getElementById('btn-cancelar-camionero')?.addEventListener('click', () => cerrarModalCamionero());
 
         document.getElementById('btn-agregar-cap')?.addEventListener('click', () => {
             const nombre = document.getElementById('cnr-cap-nombre').value.trim();
@@ -1576,7 +2818,11 @@
         document.getElementById('form-camionero')?.addEventListener('submit', e => {
             e.preventDefault();
             const nombre = document.getElementById('cnr-nombre').value.trim();
-            if (!nombre) { showToast('El nombre es obligatorio.', 'error'); return; }
+            if (!nombre) {
+                showToast('El nombre es obligatorio.', 'error');
+                document.getElementById('cnr-nombre')?.focus();
+                return;
+            }
 
             const datos = {
                 nombre,
@@ -1608,25 +2854,67 @@
         document.getElementById('lista-camioneros')?.addEventListener('click', e => {
             const delBtn = e.target.closest('.camionero-card-delete');
             if (delBtn) {
-                if (!confirm('¿Seguro que deseas eliminar este chofer?')) return;
-
                 const id = Number(delBtn.dataset.id);
+                const chofer = camioneros.find(c => c.id === id);
+                if (!chofer) return;
 
-                // Desvincular de camiones
-                camiones.forEach(cam => {
-                    if (cam.camioneroId === id) {
-                        cam.camioneroId = null;
-                        cam.camionero = '';
+                const camionesVinc = camiones.filter(cam => cam.camioneroId === id);
+                const msgImpacto = camionesVinc.length > 0
+                    ? `Se desvinculara como chofer habitual de ${camionesVinc.length} camion(es): ${camionesVinc.map(c => escapeHTML(c.nombre)).join(', ')}.`
+                    : 'Este chofer no figura asignado como conductor habitual en ningun camion.';
+
+                abrirModalConfirm({
+                    titulo: 'Eliminar ficha de chofer',
+                    descHTML: `¿Confirmas la eliminacion del chofer <strong>${escapeHTML(chofer.nombre)}</strong>${chofer.dni ? ' (DNI ' + escapeHTML(chofer.dni) + ')' : ''}?`,
+                    extraHTML: `<div class="confirm-consequences"><strong>Consecuencias:</strong> ${msgImpacto}</div>`,
+                    textoConfirmar: 'Eliminar Chofer',
+                    claseConfirmar: 'btn-danger',
+                    onConfirm: () => {
+                        const choferEliminado = JSON.parse(JSON.stringify(chofer));
+                        const camionesVinculados = camiones
+                            .filter(cam => cam.camioneroId === id)
+                            .map(cam => ({ id: cam.id, camioneroId: cam.camioneroId, camionero: cam.camionero }));
+
+                        camiones.forEach(cam => {
+                            if (cam.camioneroId === id) {
+                                cam.camioneroId = null;
+                                cam.camionero = '';
+                            }
+                        });
+
+                        camioneros = camioneros.filter(c => c.id !== id);
+                        guardar();
+                        actualizarKPIs();
+                        renderListaCamioneros();
+                        renderListaCamiones();
+                        renderSelectCamioneros();
+                        showToast('Chofer eliminado.', 'warning', {
+                            actionText: 'Deshacer',
+                            duration: 15000,
+                            onAction: () => {
+                                if (camioneros.some(cnr => cnr.id === choferEliminado.id)) {
+                                    showToast('El chofer ya existe en el plantel; no se duplicó.', 'info');
+                                    return;
+                                }
+                                camioneros.push(choferEliminado);
+                                camioneros.sort((a, b) => Number(a.id) - Number(b.id));
+                                camionesVinculados.forEach(snapshot => {
+                                    const camionActual = camiones.find(cam => cam.id === snapshot.id);
+                                    if (!camionActual || camionActual.camioneroId !== null) return;
+                                    camionActual.camioneroId = snapshot.camioneroId;
+                                    camionActual.camionero = snapshot.camionero;
+                                });
+                                contadorCamioneros = Math.max(contadorCamioneros, (Number(choferEliminado.id) || 0) + 1);
+                                guardar();
+                                actualizarKPIs();
+                                renderListaCamioneros();
+                                renderListaCamiones();
+                                renderSelectCamioneros();
+                                showToast('Chofer restaurado con sus asignaciones disponibles.', 'success');
+                            }
+                        });
                     }
                 });
-
-                camioneros = camioneros.filter(c => c.id !== id);
-                guardar();
-                actualizarKPIs();
-                renderListaCamioneros();
-                renderListaCamiones();
-                renderSelectCamioneros();
-                showToast('Chofer eliminado.', 'info');
                 return;
             }
             const card = e.target.closest('.camionero-card');
@@ -1643,22 +2931,23 @@
             }
         });
 
-        document.getElementById('btn-cerrar-perfil')?.addEventListener('click', cerrarPerfilCamionero);
+        document.getElementById('btn-cerrar-perfil')?.addEventListener('click', () => cerrarPerfilCamionero());
         document.getElementById('btn-perfil-nuevo-registro')?.addEventListener('click', () => {
             if (camioneroPerfilId === null) return;
-            cerrarPerfilCamionero();
-            abrirModalComportamiento(camioneroPerfilId);
+            const idTarget = camioneroPerfilId;
+            const originTrigger = cerrarPerfilCamionero(true);
+            abrirModalComportamiento(idTarget, originTrigger);
         });
         document.getElementById('btn-perfil-editar')?.addEventListener('click', () => {
             if (camioneroPerfilId === null) return;
             const cnr = camioneros.find(c => c.id === camioneroPerfilId);
-            cerrarPerfilCamionero();
-            abrirModalCamionero(cnr);
+            const originTrigger = cerrarPerfilCamionero(true);
+            abrirModalCamionero(cnr, originTrigger);
         });
 
         // Modal Comportamiento
-        document.getElementById('btn-cerrar-comportamiento')?.addEventListener('click', cerrarModalComportamiento);
-        document.getElementById('btn-cancelar-comportamiento')?.addEventListener('click', cerrarModalComportamiento);
+        document.getElementById('btn-cerrar-comportamiento')?.addEventListener('click', () => cerrarModalComportamiento());
+        document.getElementById('btn-cancelar-comportamiento')?.addEventListener('click', () => cerrarModalComportamiento());
         document.getElementById('form-comportamiento')?.addEventListener('submit', e => {
             e.preventDefault();
             const cnrId = parseInt(document.getElementById('comp-camionero-id').value);
@@ -1683,8 +2972,8 @@
         });
 
         // Modal Viaje
-        document.getElementById('btn-cerrar-viaje')?.addEventListener('click', cerrarModalViaje);
-        document.getElementById('btn-cancelar-viaje')?.addEventListener('click', cerrarModalViaje);
+        document.getElementById('btn-cerrar-viaje')?.addEventListener('click', () => cerrarModalViaje());
+        document.getElementById('btn-cancelar-viaje')?.addEventListener('click', () => cerrarModalViaje());
 
         document.getElementById('form-viaje')?.addEventListener('submit', e => {
             e.preventDefault();
@@ -1692,8 +2981,24 @@
             const remito = document.getElementById('vj-remito').value.trim();
             const camionId = parseInt(document.getElementById('vj-select-camion')?.value) || null;
 
-            if (!cliente || !remito) {
-                showToast('Completa cliente y remito.', 'error');
+            limpiarErroresFormulario('form-viaje');
+            let primerInvalidoVj = null;
+
+            if (!camionId) {
+                mostrarErrorCampo('vj-select-camion', 'err-vj-select-camion', 'Selecciona un camion para emitir el despacho.');
+                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-select-camion');
+            }
+            if (!cliente) {
+                mostrarErrorCampo('vj-cliente', 'err-vj-cliente', 'Ingresa la razon social o cliente receptor.');
+                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-cliente');
+            }
+            if (!remito) {
+                mostrarErrorCampo('vj-remito', 'err-vj-remito', 'Ingresa el numero de remito oficial.');
+                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-remito');
+            }
+
+            if (primerInvalidoVj) {
+                primerInvalidoVj.focus();
                 return;
             }
 
@@ -1720,8 +3025,22 @@
                     nuevo.coordsRuta = comprimirCoords(nuevo.coordsRuta);
                 }
                 envios.push(nuevo);
+                // Asegurar que el nuevo viaje sea visible en Mis Viajes reseteando filtros restrictivos
+                if (filtroEstado !== 'todos' && filtroEstado !== nuevo.estado) {
+                    filtroEstado = 'todos';
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.estado === 'todos');
+                    });
+                }
+                if (filtroBuscar) {
+                    filtroBuscar = '';
+                    const busInput = document.getElementById('filtro-buscar');
+                    if (busInput) busInput.value = '';
+                }
                 showToast('Remito y ruta emitidos con exito.', 'success');
+                limpiarBorradorRuta(false);
                 document.getElementById('form-envio')?.reset();
+                document.getElementById('resultado-ruta')?.classList.add('hidden');
                 rutaPendiente = null;
             }
 
@@ -1732,6 +3051,12 @@
 
         // Lista de Viajes y Detalles
         document.getElementById('lista-viajes')?.addEventListener('click', e => {
+            const ctaBtn = e.target.closest('.btn-cta-crear-viaje');
+            if (ctaBtn) {
+                irATab('nueva-ruta');
+                setTimeout(() => document.getElementById('origen')?.focus(), 50);
+                return;
+            }
             const dlBtn = e.target.closest('.btn-download');
             if (dlBtn) {
                 e.preventDefault();
@@ -1752,11 +3077,11 @@
             }
         });
 
-        document.getElementById('btn-cerrar-detalle')?.addEventListener('click', cerrarDetalle);
+        document.getElementById('btn-cerrar-detalle')?.addEventListener('click', () => cerrarDetalle());
         document.getElementById('btn-detalle-ver-mapa')?.addEventListener('click', () => {
             if (idEnvioDetalle !== null) {
                 const id = idEnvioDetalle;
-                cerrarDetalle();
+                cerrarDetalle(true);
                 enfocarRutaEspecifica(id);
             }
         });
@@ -1766,33 +3091,145 @@
         });
 
         document.getElementById('btn-detalle-estado')?.addEventListener('click', () => {
-            if (idEnvioDetalle === null) return;
-            const x = envios.find(item => item.id === idEnvioDetalle);
-            if (!x) return;
-            const estados = ['Pendiente', 'En Transito', 'Entregado'];
-            x.estado = estados[(estados.indexOf(x.estado) + 1) % estados.length];
-            guardar();
-            render();
-            cerrarDetalle();
-            showToast(`Estado actualizado a "${x.estado}".`, 'info');
+            const viaje = envios.find(item => item.id === idEnvioDetalle);
+            if (!viaje) return;
+            const editor = document.getElementById('detalle-estado-editor');
+            const select = document.getElementById('detalle-estado-select');
+            select.value = viaje.estado;
+            editor.classList.toggle('hidden');
+            if (!editor.classList.contains('hidden')) select.focus();
         });
 
-        document.getElementById('btn-detalle-editar')?.addEventListener('click', () => {
-            if (idEnvioDetalle !== null) iniciarEdicion(idEnvioDetalle);
+        document.getElementById('btn-detalle-cancelar-estado')?.addEventListener('click', () => {
+            document.getElementById('detalle-estado-editor')?.classList.add('hidden');
+            document.getElementById('btn-detalle-estado')?.focus();
+        });
+
+        document.getElementById('btn-detalle-guardar-estado')?.addEventListener('click', () => {
+            const viaje = envios.find(item => item.id === idEnvioDetalle);
+            const estado = document.getElementById('detalle-estado-select')?.value;
+            if (!viaje || !['Pendiente', 'En Transito', 'Entregado'].includes(estado)) return;
+            viaje.estado = estado;
+            guardar();
+            render();
+            renderDetalleContenido();
+            document.getElementById('detalle-estado-editor')?.classList.add('hidden');
+            showToast(`Estado actualizado a "${estado}".`, 'success');
+        });
+
+        document.getElementById('btn-detalle-editar')?.addEventListener('click', abrirEdicionDetalle);
+        document.getElementById('btn-detalle-cancelar-edicion')?.addEventListener('click', cancelarEdicionDetalle);
+        document.getElementById('form-detalle-edicion')?.addEventListener('submit', async e => {
+            e.preventDefault();
+            const index = envios.findIndex(item => item.id === idEnvioDetalle);
+            if (index < 0) return;
+            const actual = envios[index];
+            const origen = document.getElementById('det-origen').value.trim();
+            const destino = document.getElementById('det-destino').value.trim();
+            const producto = document.getElementById('det-producto').value.trim();
+            const pesoRaw = document.getElementById('det-peso').value;
+            const pesoCarga = pesoRaw === '' ? null : Number(pesoRaw);
+            const estado = document.getElementById('det-estado').value;
+            const camionId = Number(document.getElementById('det-camion').value) || null;
+            const error = document.getElementById('det-edit-error');
+            if (!origen || !destino || !producto || !['Pendiente', 'En Transito', 'Entregado', 'Cancelado'].includes(estado) || (pesoCarga !== null && (!Number.isFinite(pesoCarga) || pesoCarga <= 0))) {
+                error.textContent = 'Completa origen, destino y carga; revisa que el peso sea mayor que cero.';
+                error.classList.remove('hidden');
+                return;
+            }
+
+            const btn = document.getElementById('btn-detalle-guardar-edicion');
+            btn.disabled = true;
+            btn.textContent = 'Guardando…';
+            error.classList.add('hidden');
+            try {
+                const cambioRuta = origen !== actual.origen || destino !== actual.destino;
+                const ruta = cambioRuta ? await resolverRuta(origen, destino, camionId) : null;
+                envios[index] = {
+                    ...actual,
+                    origen,
+                    destino,
+                    producto,
+                    pesoCarga,
+                    estado,
+                    camionId,
+                    cliente: document.getElementById('det-cliente').value.trim(),
+                    remito: document.getElementById('det-remito').value.trim(),
+                    ...(ruta || {})
+                };
+                guardar();
+                render();
+                detalleModoEdicion = false;
+                document.getElementById('form-detalle-edicion').classList.add('hidden');
+                document.getElementById('modal-detalle').classList.remove('is-editing');
+                renderDetalleContenido();
+                showToast(cambioRuta ? 'Despacho actualizado y ruta recalculada.' : 'Despacho actualizado.', 'success');
+            } catch (err) {
+                error.textContent = err?.message || 'No se pudo recalcular la ruta. Revisa origen y destino e intenta otra vez.';
+                error.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Guardar cambios';
+            }
         });
 
         document.getElementById('btn-detalle-eliminar')?.addEventListener('click', () => {
             if (idEnvioDetalle === null) return;
-            envios = envios.filter(x => x.id !== idEnvioDetalle);
-            guardar();
-            render();
-            cerrarDetalle();
-            showToast('Ruta eliminada.', 'warning');
+            const idTarget = idEnvioDetalle;
+            const index = envios.findIndex(x => x.id === idTarget);
+            if (index === -1) return;
+            const viajeCopia = JSON.parse(JSON.stringify(envios[index]));
+
+            const originTrigger = cerrarDetalle(true);
+
+            abrirModalConfirm({
+                titulo: `Eliminar despacho #${String(idTarget).padStart(4, '0')}`,
+                descHTML: `¿Confirmas la eliminacion del viaje <strong>${escapeHTML(viajeCopia.origen)} &rarr; ${escapeHTML(viajeCopia.destino)}</strong>?`,
+                extraHTML: `<div class="confirm-consequences">Se eliminara el registro y su remito (${escapeHTML(viajeCopia.remito || 'S/R')}). Podras deshacer esta accion durante los proximos 15 segundos.</div>`,
+                textoConfirmar: 'Eliminar Viaje',
+                claseConfirmar: 'btn-danger',
+                triggerEl: originTrigger,
+                onConfirm: () => {
+                    const currentIdx = envios.findIndex(x => x.id === idTarget);
+                    if (currentIdx === -1) return;
+                    const registroEliminado = JSON.parse(JSON.stringify(envios[currentIdx]));
+                    envios.splice(currentIdx, 1);
+                    guardar();
+                    render();
+
+                    showToast(`Despacho #${String(idTarget).padStart(4, '0')} eliminado.`, 'warning', {
+                        actionText: 'Deshacer',
+                        duration: 15000,
+                        onAction: () => {
+                            if (envios.some(x => x.id === registroEliminado.id)) {
+                                showToast(`El despacho #${String(registroEliminado.id).padStart(4, '0')} ya se encuentra registrado.`, 'info');
+                                return;
+                            }
+                            const copiaRestaurada = JSON.parse(JSON.stringify(registroEliminado));
+                            const insertIdx = envios.findIndex(x => (Number(x.id) || 0) > (Number(copiaRestaurada.id) || 0));
+                            if (insertIdx === -1) {
+                                envios.push(copiaRestaurada);
+                            } else {
+                                envios.splice(insertIdx, 0, copiaRestaurada);
+                            }
+                            contadorId = Math.max(contadorId, (Number(copiaRestaurada.id) || 0) + 1);
+                            guardar();
+                            render();
+                            showToast(`Despacho #${String(copiaRestaurada.id).padStart(4, '0')} restaurado.`, 'success');
+                        }
+                    });
+                }
+            });
         });
 
-        // Busqueda y Filtros
+        // Busqueda, Filtros y Ordenamiento
         document.getElementById('filtro-buscar')?.addEventListener('input', e => {
             filtroBuscar = e.target.value;
+            renderListaViajes();
+        });
+
+        document.getElementById('orden-viajes')?.addEventListener('change', e => {
+            ordenViajes = e.target.value || 'recientes';
             renderListaViajes();
         });
 
@@ -1805,18 +3242,60 @@
             });
         });
 
-        // Click outside para cerrar modales
+        // Click outside para cerrar solo el modal superior activo
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', e => {
                 if (e.target === overlay) {
-                    cerrarModalCamion();
-                    cerrarDetalle();
-                    cerrarModalViaje();
-                    cerrarModalCamionero();
-                    cerrarModalComportamiento();
-                    cerrarPerfilCamionero();
+                    if (overlay.id === 'modal-detalle' && detalleModoEdicion) return;
+                    if (overlay.id === 'modal-confirm') cerrarModalConfirm();
+                    else if (overlay.id === 'modal-camion') cerrarModalCamion();
+                    else if (overlay.id === 'modal-detalle') cerrarDetalle();
+                    else if (overlay.id === 'modal-viaje') cerrarModalViaje();
+                    else if (overlay.id === 'modal-camionero') cerrarModalCamionero();
+                    else if (overlay.id === 'modal-comportamiento') cerrarModalComportamiento();
+                    else if (overlay.id === 'modal-perfil-camionero') cerrarPerfilCamionero();
                 }
             });
+        });
+
+        // Teclado global para modales: Escape para cerrar y Tab para contener foco dentro del modal activo
+        document.addEventListener('keydown', e => {
+            const activeModal = getModalActivo();
+            if (!activeModal) return;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (activeModal.id === 'modal-confirm') cerrarModalConfirm();
+                else if (activeModal.id === 'modal-viaje') cerrarModalViaje();
+                else if (activeModal.id === 'modal-detalle') cerrarDetalle();
+                else if (activeModal.id === 'modal-camion') cerrarModalCamion();
+                else if (activeModal.id === 'modal-camionero') cerrarModalCamionero();
+                else if (activeModal.id === 'modal-comportamiento') cerrarModalComportamiento();
+                else if (activeModal.id === 'modal-perfil-camionero') cerrarPerfilCamionero();
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                const focusables = Array.from(
+                    activeModal.querySelectorAll('button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+                ).filter(el => el.offsetParent !== null || el === document.activeElement);
+
+                if (focusables.length === 0) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+
+                if (e.shiftKey) {
+                    if (document.activeElement === first || !activeModal.contains(document.activeElement)) {
+                        e.preventDefault();
+                        last.focus();
+                    }
+                } else {
+                    if (document.activeElement === last || !activeModal.contains(document.activeElement)) {
+                        e.preventDefault();
+                        first.focus();
+                    }
+                }
+            }
         });
     }
 
@@ -2036,19 +3515,36 @@
         return `${litros} L`;
     }
 
-    function showToast(msg, tipo = 'info') {
+    function showToast(msg, tipo = 'info', opts = {}) {
         const cont = document.getElementById('toast-container');
         if (!cont) return;
         const t = document.createElement('div');
         t.className = `toast ${tipo}`;
-        t.textContent = msg;
+        const span = document.createElement('span');
+        span.textContent = msg;
+        t.appendChild(span);
+
+        if (opts && opts.actionText && typeof opts.onAction === 'function') {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'toast-action-btn';
+            btn.textContent = opts.actionText;
+            btn.addEventListener('click', () => {
+                opts.onAction();
+                t.remove();
+            });
+            t.appendChild(btn);
+        }
+
         cont.appendChild(t);
+        const dur = (opts && Number.isFinite(opts.duration)) ? opts.duration : 3500;
         setTimeout(() => {
+            if (!t.parentNode) return;
             t.style.opacity = '0';
             t.style.transform = 'translateX(20px)';
             t.style.transition = 'all 0.25s ease';
             setTimeout(() => t.remove(), 250);
-        }, 3500);
+        }, dur);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2064,6 +3560,7 @@
         renderListaCamiones();
         renderListaCamioneros();
         render();
+        restaurarBorradorRuta();
 
         window.addEventListener('resize', () => {
             if (mapaFull) mapaFull.invalidateSize();

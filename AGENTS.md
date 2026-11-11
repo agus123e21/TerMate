@@ -6,19 +6,19 @@ Guía de referencia rápida y alta densidad para agentes de IA (Cursor, Claude, 
 
 ## 1. Identidad y Arquitectura del Proyecto
 - **Propósito**: PWA logística y despacho de transporte pesado en Argentina (rutas, remitos electrónicos, combustible, flota).
-- **Stack Técnico**: Vanilla JavaScript (ES6+), HTML5 semántico accesible, CSS3 (Dark Steel).
+- **Stack Técnico**: Vanilla JavaScript (ES6+), HTML5 semántico accesible, CSS3 (Obsidian & Electric Blue).
 - **Cero Build Step**: Sin bundlers, sin transpiladores (Webpack/Vite/Babel). Ejecución nativa directa en el navegador.
 - **Librerías CDN Core**: Leaflet 1.9.4 (`leaflet.js`, `leaflet.css`), fuentes Google Inter. No agregar librerías externas pesadas.
-- **Tema Visual**: *Dark Steel* — Paleta oscura industrial (`#0f172a`, `#1e293b`), acentos en esmeralda/ámbar, fuentes monospace para métricas numéricas.
+- **Tema Visual**: *Obsidian & Electric Blue* — Paleta oscura industrial (`#060911`, `#0e1526`, `#131d33`), acento primario azul eléctrico (`#2563eb`, `#60a5fa`) y acentos semánticos en esmeralda/ámbar/rojo.
 
 ---
 
 ## 2. Mapa del Repositorio y Responsabilidades
 | Archivo / Carpeta | Responsabilidad |
 |---|---|
-| `index.html` | Shell SPA, modales de flota/viajes, template de remito oficial, marcado ARIA accesible. |
-| `js/app.js` | Estado global (`envios`, `camiones`, `camioneros`), geocodificación, OSRM, render Leaflet, métricas, validaciones. |
-| `css/styles.css` | Sistema Dark Steel, layout responsivo mobile-first, clases de mapa (`.map-tiles-dark`), estilos de remito de impresión. |
+| `index.html` | Shell SPA, modales de flota/viajes/confirmación, controles de backup/restore, marcado ARIA accesible. |
+| `js/app.js` | Estado global (`envios`, `camiones`, `camioneros`), geocodificación, OSRM, render Leaflet, métricas, validaciones, backup/restore y borradores. |
+| `css/styles.css` | Sistema Obsidian & Electric Blue, layout responsivo mobile-first, clases de mapa (`.map-tiles-dark`), accesibilidad y estados de foco. |
 | `sw.js` | Service Worker PWA, estrategia offline-first, precache resiliente, bypass directo en `localhost`/`127.0.0.1`. |
 | `tests/` | Suites de validación y red-team (`certificacion_final_ciclo4.js`, auditorías de storage, XSS y coordenadas). |
 | `.agents/skills/` | Habilidades especializadas (`termate-core`, `termate-offline-engine`, `termate-ui-system`). |
@@ -27,59 +27,64 @@ Guía de referencia rápida y alta densidad para agentes de IA (Cursor, Claude, 
 
 ## 3. Contratos de Datos y Esquemas (`localStorage`)
 Claves utilizadas en almacenamiento:
-- `termate_envios`: Lista de viajes/despachos registrados.
-- `termate_camiones`: Catálogo de flota pesada.
-- `termate_camioneros`: Registro de choferes y licencias.
-- `termate_geocache`: Caché en memoria/disco de resoluciones geográficas.
+- `termate_envios`: Lista de viajes/despachos registrados (`contador`: `termate_contador`).
+- `termate_camiones`: Catálogo de flota pesada (`contador`: `termate_cont_camiones`).
+- `termate_camioneros`: Registro de choferes y licencias (`contador`: `termate_cont_camioneros`).
+- `termate_geo_cache`: Caché en memoria/disco de resoluciones geográficas.
+- `termate_draft_ruta`: Borrador temporal del formulario Nueva Ruta.
 
 ### Esquema: Envíos (`envios[]`)
 ```typescript
 interface Envio {
-  id: string; // Timestamp o UUID corto
-  numero: string; // Formato "R-XXXX-XXXXXXXX"
-  origen: { nombre: string; coords: [lat: number, lng: number] };
-  destino: { nombre: string; coords: [lat: number, lng: number] };
-  camionId: string;
-  choferId: string;
-  tipoCarga: string;
-  peso: number; // en kg o toneladas
-  bultos: number;
+  id: number;
+  origen: string;
+  destino: string;
+  producto: string;
+  pesoCarga: number | null; // en toneladas
   estado: 'Pendiente' | 'En Transito' | 'Entregado' | 'Cancelado';
-  distanciaKm: number;
-  duracionHs: number;
-  combustibleL: number;
-  peajes: number;
-  rutaCoords?: [number, number][]; // Polilínea comprimida (máx 150 pts)
-  fechaEmision: string; // ISO String
+  camionId: number | null;
+  cliente?: string;
+  remito?: string; // Formato "R-0001-XXXXXXXX"
+  distancia: number; // en km
+  tiempo: number; // en horas
+  coordsOrigen?: [lat: number, lng: number];
+  coordsDestino?: [lat: number, lng: number];
+  coordsRuta?: [number, number][]; // Polilínea comprimida (máx 150 pts)
+  fecha: string; // ISO String
 }
 ```
 
 ### Esquema: Camiones (`camiones[]`)
 ```typescript
 interface Camion {
-  id: string;
-  patente: string; // "AA123BB" o "ABC123"
-  marca: string;
-  modelo: string;
-  anio: number;
-  tipo: 'Chasis' | 'Semi' | 'Bitren' | 'Utilitario';
-  capacidadCarga: number; // en kg
-  estado: 'Disponible' | 'En Viaje' | 'Mantenimiento';
-  kilometraje: number;
-  choferAsignadoId?: string | null;
+  id: number;
+  nombre: string;
+  patente: string; // "AA 123 BB" o "ABC 123"
+  camionero: string;
+  camioneroId: number | null;
+  peso: number; // Capacidad máx en tn
+  alto: number; // en m
+  largo: number; // en m
+  ancho: number; // en m
+  consumoVacio: number; // L/100km
+  consumoLleno: number; // L/100km
 }
 ```
 
 ### Esquema: Camioneros (`camioneros[]`)
 ```typescript
 interface Camionero {
-  id: string;
+  id: number;
   nombre: string;
   dni: string;
-  licencia: string;
-  vencimientoLicencia: string; // YYYY-MM-DD
-  telefono: string;
-  camionesAsignados?: string[];
+  tel: string;
+  ingreso: string; // YYYY-MM-DD
+  carnetNum: string;
+  carnetCat: string; // 'C' | 'D' | 'E'
+  carnetVto: string; // YYYY-MM-DD
+  camionAsignadoId: number | null;
+  capacitaciones: { nombre: string; fecha: string }[];
+  historial: { fecha: string; ruta: string; puntualidad: string; incidencias: string; bono: string; obs: string }[];
 }
 ```
 

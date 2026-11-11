@@ -14,9 +14,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <link rel="stylesheet" href="css/styles.css?v=4.1.0">
+    <link rel="stylesheet" href="css/styles.css?v=4.3.0">
 </head>
 <body>
+
+<a href="#app-main" class="skip-link">Saltar al contenido principal</a>
 
 <!-- SIDEBAR ESCRITORIO -->
 <aside id="sidebar">
@@ -81,6 +83,17 @@
             <span class="conexion-dot"></span>
             <span class="conexion-texto">Online</span>
         </div>
+        <div class="backup-actions-bar" role="group" aria-label="Respaldo de datos">
+            <button type="button" id="btn-exportar-backup" class="btn-backup" title="Exportar copia de seguridad JSON">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Exportar</span>
+            </button>
+            <button type="button" id="btn-importar-backup" class="btn-backup" title="Importar copia de seguridad JSON">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Importar</span>
+            </button>
+            <input type="file" id="input-file-backup" accept=".json,application/json" class="hidden" aria-hidden="true" tabindex="-1">
+        </div>
     </div>
 </aside>
 
@@ -95,7 +108,13 @@
         </svg>
         <span class="brand-name-sm">TerMate</span>
     </div>
-    <div class="header-actions">
+    <div class="header-actions" style="display:flex;align-items:center;gap:0.45rem;">
+        <button type="button" id="btn-exportar-backup-mobile" class="btn-backup" style="flex:0;padding:0.3rem 0.55rem;" title="Exportar respaldo JSON" aria-label="Exportar respaldo JSON">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button type="button" id="btn-importar-backup-mobile" class="btn-backup" style="flex:0;padding:0.3rem 0.55rem;" title="Importar respaldo JSON" aria-label="Importar respaldo JSON">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
         <span id="indicador-conexion" class="conexion-pill online">
             <span class="conexion-dot"></span>
             <span class="conexion-texto">Online</span>
@@ -104,7 +123,7 @@
 </header>
 
 <!-- CONTENEDOR PRINCIPAL -->
-<main id="app-main">
+<main id="app-main" tabindex="-1">
 
     <!-- BARRA DE KPIS OPERATIVOS -->
     <div id="kpis-bar" class="kpis-bar">
@@ -135,12 +154,19 @@
             <div class="pane-col-form">
                 <div class="section-header">
                     <h2 id="form-titulo" class="section-title">Nueva Ruta de Transporte</h2>
-                    <p class="section-subtitle">Ingresa el origen y destino para calcular distancias, tiempos y emision de remito.</p>
+                    <p class="section-subtitle">Completá los puntos del viaje para calcular la ruta y preparar el remito.</p>
                 </div>
 
                 <form id="form-envio" novalidate class="route-form">
+                    <div id="draft-banner" class="draft-banner hidden" role="status">
+                        <span>Borrador recuperado automaticamente.</span>
+                        <div class="draft-banner-actions">
+                            <button type="button" id="btn-descartar-borrador" class="btn-xs">Descartar borrador</button>
+                        </div>
+                    </div>
+
                     <div class="field-block">
-                        <label class="field-label" for="origen">Punto de Origen (Carga)</label>
+                        <label class="field-label" for="origen"><span class="field-step">1</span> Punto de origen <span class="field-hint">Carga</span></label>
                         <div class="input-with-indicator">
                             <span class="route-dot route-dot--start" title="Origen"></span>
                             <div class="autocomplete-wrap">
@@ -150,6 +176,7 @@
                                 <ul id="sugerencias-origen" class="suggestions-list" role="listbox"></ul>
                             </div>
                         </div>
+                        <div id="err-origen" class="field-error hidden" role="alert"></div>
                     </div>
 
                     <div class="route-connector">
@@ -157,7 +184,7 @@
                     </div>
 
                     <div class="field-block">
-                        <label class="field-label" for="destino">Punto de Destino (Descarga)</label>
+                        <label class="field-label" for="destino"><span class="field-step">2</span> Punto de destino <span class="field-hint">Descarga</span></label>
                         <div class="input-with-indicator">
                             <span class="route-dot route-dot--end" title="Destino"></span>
                             <div class="autocomplete-wrap">
@@ -167,15 +194,17 @@
                                 <ul id="sugerencias-destino" class="suggestions-list" role="listbox"></ul>
                             </div>
                         </div>
+                        <div id="err-destino" class="field-error hidden" role="alert"></div>
                     </div>
 
                     <div class="form-divider"></div>
 
                     <div class="field-block">
-                        <label class="field-label" for="producto">Descripcion de la Carga</label>
+                        <label class="field-label" for="producto"><span class="field-step">3</span> Datos de la carga</label>
                         <input type="text" id="producto" class="field-input"
                             placeholder="Ej: Granos a granel, pallets de mercaderia, bobinas..."
                             required autocomplete="off">
+                        <div id="err-producto" class="field-error hidden" role="alert"></div>
                     </div>
 
                     <div class="fields-row">
@@ -199,6 +228,7 @@
                         <select id="select-camion" class="field-input">
                             <option value="">-- Seleccionar camion de flota --</option>
                         </select>
+                        <div id="err-select-camion" class="field-error hidden" role="alert"></div>
                     </div>
 
                     <div class="form-actions-row">
@@ -221,7 +251,7 @@
                             <span class="result-badge">Ruta Optimizada</span>
                             <span class="result-subtitle">Calculado sobre la red vial nacional</span>
                         </div>
-                        <button id="btn-ver-mapa-resultado" class="btn-link">Ver en Mapa Full</button>
+                        <button id="btn-ver-mapa-resultado" class="btn-link">Ver mapa completo</button>
                     </div>
                     <div class="result-metrics">
                         <div class="result-metric">
@@ -248,7 +278,7 @@
                 <div class="map-inline-header">
                     <div class="map-inline-tag">
                         <span class="pulse-dot"></span>
-                        <span>Vista Previa de Ruta</span>
+                        <span>Vista previa del recorrido</span>
                     </div>
                     <div class="map-inline-controls">
                         <div class="map-layer-selector" aria-label="Capas del mapa previo">
@@ -283,7 +313,7 @@
         <div class="trips-header">
             <div>
                 <h2 class="section-title">Mis Viajes y Remitos</h2>
-                <p class="section-subtitle">Historial de despachos, control de estados y emision de comprobantes.</p>
+                <p class="section-subtitle">Consulta el estado de cada despacho y descarga su remito cuando lo necesites.</p>
             </div>
             <div class="search-box">
                 <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -295,11 +325,23 @@
             </div>
         </div>
 
-        <div class="filter-bar" role="group" aria-label="Filtrar por estado">
-            <button class="filter-btn active" data-estado="todos">Todos</button>
-            <button class="filter-btn" data-estado="Pendiente">Pendientes</button>
-            <button class="filter-btn" data-estado="En Transito">En Ruta</button>
-            <button class="filter-btn" data-estado="Entregado">Entregados</button>
+        <div class="trips-controls-row">
+            <div class="filter-bar" role="group" aria-label="Filtrar por estado">
+                <button class="filter-btn active" data-estado="todos">Todos</button>
+                <button class="filter-btn" data-estado="Pendiente">Pendientes</button>
+                <button class="filter-btn" data-estado="En Transito">En Ruta</button>
+                <button class="filter-btn" data-estado="Entregado">Entregados</button>
+            </div>
+
+            <div class="sort-control-wrap">
+                <label class="sort-label" for="orden-viajes">Ordenar por</label>
+                <select id="orden-viajes" class="sort-select">
+                    <option value="recientes">Mas recientes</option>
+                    <option value="distancia-desc">Mayor distancia</option>
+                    <option value="distancia-asc">Menor distancia</option>
+                    <option value="estado">Estado operativo</option>
+                </select>
+            </div>
         </div>
 
         <div id="lista-viajes" class="trips-grid"></div>
@@ -308,39 +350,30 @@
     <!-- TAB 3: MAPA DE FLOTA -->
     <section id="tab-mapa" class="tab-pane tab-pane--map">
         <!-- Controles flotantes sobre el mapa -->
-        <div class="map-overlay-header">
-            <div class="map-search-bar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="map-search-icon">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <div class="autocomplete-wrap" style="flex:1;">
-                    <input type="text" id="map-search-input" class="map-search-field" placeholder="Buscar localidad o punto en el mapa..." autocomplete="off">
-                    <ul id="map-search-sugerencias" class="suggestions-list" role="listbox"></ul>
-                </div>
-            </div>
-
-            <div class="map-layer-selector">
-                <button type="button" class="map-layer-btn active" data-layer="streets" title="Vista Callejera (OSM)">
+        <div class="map-overlay-header" role="group" aria-label="Controles del mapa">
+            <div class="map-controls-group">
+            <div class="map-layer-selector" aria-label="Capas del mapa">
+                <button type="button" class="map-layer-btn active" data-layer="streets" aria-pressed="true" title="Vista Callejera (OSM)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
                     <span>Calles</span>
                 </button>
-                <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital (ArcGIS)">
+                <button type="button" class="map-layer-btn" data-layer="satellite" aria-pressed="false" title="Vista Satelital (ArcGIS)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     <span>Satelital</span>
                 </button>
             </div>
 
             <!-- Toolbar de Puntos de Interes -->
-            <div class="map-poi-selector">
-                <button type="button" id="btn-poi-combustible" class="map-poi-btn" data-poi="gasolina" title="Mostrar Estaciones de Servicio en el mapa">
+            <div class="map-poi-selector" aria-label="Puntos de interés">
+                <button type="button" id="btn-poi-combustible" class="map-poi-btn" data-poi="gasolina" aria-pressed="false" title="Mostrar u ocultar estaciones de servicio">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 22V10l7-8 7 8v12"/><rect x="9" y="14" width="6" height="8"/><path d="M14 22V14a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v8"/><line x1="18" y1="12" x2="18" y2="7"/></svg>
                     <span>Estaciones de Servicio</span>
                 </button>
-                <button type="button" id="btn-poi-comida" class="map-poi-btn" data-poi="comida" title="Mostrar Paradores de Descanso">
+                <button type="button" id="btn-poi-comida" class="map-poi-btn" data-poi="comida" aria-pressed="false" title="Mostrar u ocultar paradores de descanso">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
                     <span>Paradores y Descansos</span>
                 </button>
+            </div>
             </div>
         </div>
 
@@ -360,6 +393,12 @@
                 <span class="map-stat-label">Distancia Total</span>
                 <span id="map-stat-distancia" class="map-stat-val green">0 km</span>
             </div>
+        </div>
+
+        <div class="map-legend" role="group" aria-label="Referencias de rutas por estado">
+            <span><i class="legend-dot legend-dot--pending"></i>Pendiente</span>
+            <span><i class="legend-dot legend-dot--transit"></i>En ruta</span>
+            <span><i class="legend-dot legend-dot--delivered"></i>Entregado</span>
         </div>
 
         <div id="mapa" class="map-full" aria-label="Mapa de operaciones"></div>
@@ -406,6 +445,7 @@
                     <span>Nuevo Chofer</span>
                 </button>
             </div>
+            <div id="licencias-alert-banner" class="licencias-alert-banner hidden" role="region" aria-label="Aviso de licencias de choferes"></div>
             <div id="lista-camioneros" class="camioneros-grid"></div>
         </div>
     </section>
@@ -692,13 +732,54 @@
         </div>
 
         <div id="detalle-contenido" class="detail-rows"></div>
+        <form id="form-detalle-edicion" class="detail-edit-form hidden" novalidate>
+            <div class="field-block"><label class="field-label" for="det-origen">Origen</label><input id="det-origen" class="field-input" required></div>
+            <div class="field-block"><label class="field-label" for="det-destino">Destino</label><input id="det-destino" class="field-input" required></div>
+            <div class="field-block"><label class="field-label" for="det-producto">Carga</label><input id="det-producto" class="field-input" required></div>
+            <div class="fields-row">
+                <div class="field-block"><label class="field-label" for="det-peso">Peso (tn)</label><input id="det-peso" class="field-input" type="number" min="0.1" step="0.1"></div>
+                <div class="field-block"><label class="field-label" for="det-estado">Estado</label><select id="det-estado" class="field-input"><option>Pendiente</option><option value="En Transito">En Ruta</option><option>Entregado</option></select></div>
+            </div>
+            <div class="field-block"><label class="field-label" for="det-camion">Camión asignado</label><select id="det-camion" class="field-input"></select></div>
+            <div class="fields-row">
+                <div class="field-block"><label class="field-label" for="det-cliente">Cliente / Receptor</label><input id="det-cliente" class="field-input"></div>
+                <div class="field-block"><label class="field-label" for="det-remito">Número de remito</label><input id="det-remito" class="field-input"></div>
+            </div>
+            <p id="det-edit-error" class="field-error hidden" role="alert"></p>
+            <div class="detail-edit-actions"><button type="button" id="btn-detalle-cancelar-edicion" class="btn-ghost">Cancelar</button><button type="submit" id="btn-detalle-guardar-edicion" class="btn-primary">Guardar cambios</button></div>
+        </form>
+        <div id="detalle-estado-editor" class="detail-state-editor hidden">
+            <label class="field-label" for="detalle-estado-select">Nuevo estado</label>
+            <select id="detalle-estado-select" class="field-input"><option value="Pendiente">Pendiente</option><option value="En Transito">En Ruta</option><option value="Entregado">Entregado</option></select>
+            <button type="button" id="btn-detalle-guardar-estado" class="btn-primary">Actualizar estado</button>
+            <button type="button" id="btn-detalle-cancelar-estado" class="btn-ghost">Cancelar</button>
+        </div>
 
         <div class="modal-actions detail-actions">
-            <button id="btn-detalle-ver-mapa" class="btn-primary">Ver en Mapa</button>
-            <button id="btn-detalle-imprimir-remito" class="btn-secondary">Imprimir Remito</button>
-            <button id="btn-detalle-estado" class="btn-secondary">Cambiar Estado</button>
-            <button id="btn-detalle-editar" class="btn-secondary">Editar</button>
-            <button id="btn-detalle-eliminar" class="btn-danger">Eliminar</button>
+            <div class="detail-actions-main">
+            <button id="btn-detalle-imprimir-remito" class="btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                <span>Imprimir remito</span>
+            </button>
+            <button id="btn-detalle-estado" class="btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+                <span>Cambiar estado</span>
+            </button>
+            <button id="btn-detalle-editar" class="btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5z"/></svg>
+                <span>Editar</span>
+            </button>
+            </div>
+            <div class="detail-actions-bottom">
+                <button id="btn-detalle-ver-mapa" class="btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"/><path d="M9 3v15M15 6v15"/></svg>
+                    <span>Ver en mapa</span>
+                </button>
+                <button id="btn-detalle-eliminar" class="btn-danger">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></svg>
+                    <span>Eliminar</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -711,12 +792,13 @@
             <button id="btn-cerrar-viaje" class="modal-close" aria-label="Cerrar">&times;</button>
         </div>
 
-        <form id="form-viaje" class="modal-form">
+        <form id="form-viaje" novalidate class="modal-form">
             <div class="field-block">
                 <label class="field-label" for="vj-select-camion">Camion de Asignacion</label>
                 <select id="vj-select-camion" class="field-input" required>
                     <option value="">-- Seleccionar camion --</option>
                 </select>
+                <div id="err-vj-select-camion" class="field-error hidden" role="alert"></div>
             </div>
 
             <div class="form-divider"></div>
@@ -725,10 +807,12 @@
                 <div class="field-block">
                     <label class="field-label" for="vj-cliente">Razon Social / Cliente</label>
                     <input type="text" id="vj-cliente" class="field-input" placeholder="Nombre de la empresa o receptor" required autocomplete="off">
+                    <div id="err-vj-cliente" class="field-error hidden" role="alert"></div>
                 </div>
                 <div class="field-block">
                     <label class="field-label" for="vj-remito">Numero de Remito Oficial</label>
                     <input type="text" id="vj-remito" class="field-input" placeholder="Ej: R-0001-00045120" required autocomplete="off">
+                    <div id="err-vj-remito" class="field-error hidden" role="alert"></div>
                 </div>
             </div>
 
@@ -743,10 +827,26 @@
     </div>
 </div>
 
+<!-- MODAL: CONFIRMACION UNIVERSAL (BORRADO / RESTORE BACKUP) -->
+<div id="modal-confirm" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-titulo" aria-describedby="modal-confirm-desc">
+    <div class="modal-panel modal-panel--sm">
+        <div class="modal-header">
+            <h2 id="modal-confirm-titulo" class="modal-title">Confirmar accion</h2>
+            <button type="button" id="btn-cerrar-confirm" class="modal-close" aria-label="Cerrar">&times;</button>
+        </div>
+        <div id="modal-confirm-desc" style="font-size:0.88rem;color:var(--c-text-body);line-height:1.45;"></div>
+        <div id="modal-confirm-extra" class="hidden"></div>
+        <div class="modal-actions">
+            <button type="button" id="btn-cancelar-confirm" class="btn-ghost">Cancelar</button>
+            <button type="button" id="btn-aceptar-confirm" class="btn-danger">Confirmar</button>
+        </div>
+    </div>
+</div>
+
 <!-- TOASTS DE NOTIFICACION -->
 <div id="toast-container" role="status" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/app.js?v=4.1.0"></script>
+<script src="js/app.js?v=4.3.0"></script>
 </body>
 </html>

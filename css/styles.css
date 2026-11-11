@@ -1185,12 +1185,12 @@ select.field-input {
 .map-overlay-header {
     position: absolute;
     top: 14px;
-    left: 14px;
-    right: 14px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     z-index: var(--z-map-overlays);
     display: flex;
     align-items: center;
-    gap: 8px;
     pointer-events: none;
 }
 
@@ -1198,86 +1198,65 @@ select.field-input {
     pointer-events: auto;
 }
 
-.map-search-bar {
-    position: relative;
+.map-controls-group {
     display: flex;
     align-items: center;
-    background: rgba(14, 21, 38, 0.94);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--c-border);
-    border-radius: var(--r-sm);
-    padding: 0 0.85rem;
-    flex: 1;
-    max-width: 360px;
-    box-shadow: var(--shadow-md);
-}
-
-.map-search-icon {
-    color: var(--c-text-muted);
-    margin-right: 0.5rem;
-}
-
-.map-search-field {
-    background: transparent;
-    border: none;
-    color: var(--c-text-title);
-    padding: 0.6rem 0;
-    font-size: 0.82rem;
-    width: 100%;
-}
-
-.map-search-field:focus {
-    outline: none;
+    justify-content: center;
+    gap: 0.65rem;
+    padding: 0.45rem;
+    border: 1px solid rgba(148, 163, 184, 0.36);
+    border-radius: 14px;
+    background: #0e1526;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
 }
 
 .map-layer-selector, .map-poi-selector {
     display: flex;
     align-items: center;
     gap: 4px;
-    background: rgba(14, 21, 38, 0.94);
-    backdrop-filter: blur(12px);
+    background: #17233b;
     border: 1px solid var(--c-border);
-    border-radius: var(--r-sm);
-    padding: 3px;
-    box-shadow: var(--shadow-md);
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: none;
 }
 
 .map-layer-btn, .map-poi-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: transparent;
+    background: #233452;
     border: none;
-    color: var(--c-text-muted);
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 0.72rem;
+    color: #dbeafe;
+    min-height: 42px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
     transition: all var(--t-fast);
 }
 
 .map-layer-btn:hover, .map-poi-btn:hover {
-    color: var(--c-text-title);
-    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    background: #334c70;
 }
 
 .map-layer-btn.active {
-    background: var(--c-primary-light);
-    color: #060911;
+    background: #2563eb;
+    color: #ffffff;
 }
 
 .map-poi-btn.active[data-poi="gasolina"] {
-    background: rgba(16, 185, 129, 0.25);
-    color: #34d399;
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    background: #047857;
+    color: #ffffff;
+    border: 1px solid #10b981;
 }
 
 .map-poi-btn.active[data-poi="comida"] {
-    background: rgba(245, 158, 11, 0.25);
-    color: #fbbf24;
-    border: 1px solid rgba(251, 191, 36, 0.4);
+    background: #b45309;
+    color: #ffffff;
+    border: 1px solid #f59e0b;
 }
 
 .map-overlay-stats {
@@ -1288,14 +1267,47 @@ select.field-input {
     display: flex;
     align-items: center;
     gap: 14px;
-    background: rgba(14, 21, 38, 0.94);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: #0e1526;
     border: 1px solid var(--c-border);
     border-radius: var(--r-md);
     padding: 8px 16px;
     box-shadow: var(--shadow-lg);
 }
+
+.map-legend {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: var(--z-map-overlays);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.75rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid #334155;
+    border-radius: var(--r-sm);
+    background: #0e1526;
+    color: #e2e8f0;
+    box-shadow: var(--shadow-lg);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.map-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.legend-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+}
+
+.legend-dot--pending { background: #f59e0b; }
+.legend-dot--transit { background: #38bdf8; }
+.legend-dot--delivered { background: #10b981; }
 
 .map-stat-item {
     display: flex;
@@ -1769,6 +1781,348 @@ select.field-input {
     }
 }
 
+/* Lectura y acciones del detalle de despacho */
+#modal-detalle .modal-panel {
+    max-width: 620px;
+    max-height: calc(100dvh - 2rem);
+    gap: 0.75rem;
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+#modal-detalle .modal-header {
+    padding-bottom: 0.7rem;
+}
+
+#modal-detalle .modal-title {
+    font-size: 1.1rem;
+}
+
+#modal-detalle .detail-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+#modal-detalle .detail-row {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 3.65rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    background: rgba(6, 9, 17, 0.35);
+}
+
+#modal-detalle .detail-row:nth-child(-n+2) {
+    grid-column: span 2;
+    min-height: 4rem;
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+#modal-detalle .detail-row:nth-child(3) {
+    grid-column: span 2;
+}
+
+#modal-detalle .detail-row:nth-child(5),
+#modal-detalle .detail-row:nth-child(6),
+#modal-detalle .detail-row:nth-child(7) {
+    background: rgba(16, 185, 129, 0.07);
+    border-color: rgba(16, 185, 129, 0.18);
+}
+
+#modal-detalle .detail-key {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--c-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+#modal-detalle .detail-val {
+    width: 100%;
+    color: var(--c-text-title);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+#modal-detalle .detail-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 0.1rem;
+    padding-top: 0.7rem;
+}
+
+#modal-detalle .detail-actions-main,
+#modal-detalle .detail-actions-bottom {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+#modal-detalle .detail-actions-bottom {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--c-border);
+}
+
+#modal-detalle .detail-actions button {
+    min-height: 2.6rem;
+    justify-content: center;
+    padding: 0.55rem 0.7rem;
+}
+
+#modal-detalle #btn-detalle-eliminar {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.22);
+}
+
+#modal-detalle #btn-detalle-eliminar:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
+#modal-detalle .detail-actions-bottom button {
+    min-height: 2.4rem;
+    font-size: 0.78rem;
+}
+
+#modal-detalle.is-editing .detail-rows,
+#modal-detalle.is-editing .detail-actions,
+#modal-detalle.is-editing #detalle-estado-editor {
+    display: none;
+}
+
+.detail-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.detail-edit-actions,
+.detail-state-editor {
+    display: flex;
+    align-items: end;
+    gap: 0.5rem;
+}
+
+.detail-state-editor {
+    flex-wrap: wrap;
+    padding: 0.8rem;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    background: #0e1526;
+}
+
+.detail-state-editor .field-label {
+    flex-basis: 100%;
+}
+
+.detail-state-editor .field-input {
+    flex: 1;
+    min-width: 10rem;
+}
+
+.detail-edit-actions {
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--c-border);
+}
+
+#modal-detalle .detail-actions svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+    #modal-detalle {
+        padding: 0.75rem;
+    }
+
+    #modal-detalle .modal-panel {
+        max-height: calc(100dvh - 1.5rem);
+        padding: 1rem;
+    }
+
+    #modal-detalle .detail-rows {
+        grid-template-columns: 1fr;
+    }
+
+    #modal-detalle .detail-row:nth-child(-n+3) {
+        grid-column: auto;
+    }
+
+    #modal-detalle .detail-actions-main {
+        grid-template-columns: 1fr;
+    }
+
+    #modal-detalle .detail-actions-bottom {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .detail-state-editor,
+    .detail-edit-actions {
+        align-items: stretch;
+    }
+}
+
+/* Ajustes de claridad para la pantalla de nueva ruta */
+.pane-cols {
+    grid-template-columns: minmax(360px, 0.78fr) minmax(0, 1.22fr);
+    gap: 2rem;
+}
+
+.pane-col-form {
+    gap: 1rem;
+}
+
+.section-header {
+    padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.section-title {
+    font-size: clamp(1.25rem, 1.6vw, 1.5rem);
+    line-height: 1.25;
+}
+
+.section-subtitle {
+    max-width: 42rem;
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+
+.route-form {
+    gap: 0.9rem;
+    padding: 1.25rem 1.5rem;
+    border-color: rgba(96, 165, 250, 0.14);
+}
+
+.pane-col-map {
+    height: auto;
+    min-height: 560px;
+    align-self: stretch;
+}
+
+.field-block {
+    gap: 0.25rem;
+}
+
+.field-input {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+}
+
+.fields-row {
+    gap: 0.65rem;
+}
+
+.route-connector {
+    margin: -0.55rem 0;
+}
+
+.field-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.82rem;
+    color: var(--c-text-body);
+}
+
+.field-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    border-radius: 50%;
+    color: var(--c-primary-light);
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.field-hint {
+    color: var(--c-text-muted);
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+.map-inline-header {
+    padding: 0.85rem 1rem;
+    gap: 0.75rem;
+}
+
+.map-inline-tag {
+    font-size: 0.84rem;
+}
+
+.map-inline-controls {
+    gap: 0.4rem;
+}
+
+.map-layer-selector,
+.map-poi-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.2rem;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    background: rgba(6, 9, 17, 0.45);
+}
+
+.map-poi-selector {
+    margin-left: 0.25rem;
+}
+
+.inline-layer-btn,
+.inline-poi-btn {
+    min-height: 1.9rem;
+    padding: 0.35rem 0.6rem;
+}
+
+.result-card {
+    margin-top: 0.25rem;
+}
+
+@media (max-width: 1100px) and (min-width: 1025px) {
+    .pane-cols {
+        grid-template-columns: minmax(320px, 0.72fr) minmax(0, 1.28fr);
+        gap: 1.25rem;
+    }
+
+    .route-form {
+        padding: 1.25rem;
+    }
+
+    .map-inline-controls {
+        width: 100%;
+    }
+}
+
+@media (max-width: 1024px) {
+    .pane-cols {
+        grid-template-columns: 1fr;
+    }
+
+    .pane-col-map {
+        height: 420px;
+        position: static;
+    }
+}
+
 @media (max-width: 768px) {
     #sidebar {
         display: none !important;
@@ -1809,20 +2163,31 @@ select.field-input {
         border-radius: var(--r-md);
     }
     .map-overlay-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 6px;
-        top: 10px;
-        left: 10px;
-        right: 10px;
+        top: 12px;
+        left: 50%;
+        right: auto;
+        max-width: calc(100% - 20px);
     }
-    .map-search-bar {
+
+    .map-controls-group {
         max-width: 100%;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        padding: 0.35rem;
     }
-    .map-layer-selector, .map-poi-selector {
+
+    .map-layer-selector,
+    .map-poi-selector {
         overflow-x: auto;
         white-space: nowrap;
-        justify-content: flex-start;
+        justify-content: center;
+        max-width: 100%;
+    }
+
+    .map-layer-btn,
+    .map-poi-btn {
+        min-height: 44px;
+        padding-inline: 0.7rem;
     }
     .map-overlay-stats {
         left: 10px;
@@ -1831,7 +2196,663 @@ select.field-input {
         justify-content: space-between;
         padding: 6px 12px;
     }
+
+    .map-legend {
+        right: 10px;
+        bottom: 82px;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.55rem 0.65rem;
+        font-size: 0.68rem;
+    }
     .map-stat-val {
         font-size: 0.82rem;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UI/QOL ENHANCEMENTS — INTERACTION, ACCESSIBILITY & RESILIENCE
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── 1. SKIP LINK ACCESIBLE ─────────────────────────────────── */
+.skip-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 10000;
+    background: var(--c-primary);
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.65rem 1.1rem;
+    border-radius: var(--r-sm);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: var(--shadow-md);
+    text-decoration: none;
+    transform: translateY(-200%);
+    transition: transform var(--t-fast);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid var(--c-primary-light);
+    outline-offset: 2px;
+}
+
+/* ─── 2. ERRORES INLINE DE FORMULARIO Y ESTADOS DE FOCO ──────── */
+.field-input[aria-invalid="true"],
+.field-input.input-error {
+    border-color: var(--c-danger);
+    background-color: rgba(239, 68, 68, 0.05);
+}
+
+.field-input[aria-invalid="true"]:focus,
+.field-input.input-error:focus {
+    border-color: var(--c-danger);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.22);
+}
+
+.field-error {
+    font-size: 0.75rem;
+    color: #f87171;
+    font-weight: 600;
+    margin-top: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.3;
+}
+
+.field-error:empty,
+.field-error.hidden,
+.field-error[hidden] {
+    display: none !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-ghost:focus-visible,
+.btn-danger:focus-visible,
+.btn-link:focus-visible,
+.btn-xs:focus-visible,
+.btn-backup:focus-visible,
+.filter-btn:focus-visible,
+.subtab-btn:focus-visible,
+.sidebar-btn:focus-visible,
+.nav-btn:focus-visible,
+.modal-close:focus-visible,
+.btn-download:focus-visible,
+.camionero-card-delete:focus-visible,
+.toast-action-btn:focus-visible {
+    outline: 2px solid var(--c-primary-light);
+    outline-offset: 2px;
+}
+
+/* ─── 3. BANNER / AVISO DE BORRADOR EN NUEVA RUTA ────────────── */
+.draft-banner {
+    background: rgba(37, 99, 235, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: var(--r-sm);
+    padding: 0.55rem 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.78rem;
+    color: var(--c-text-body);
+}
+
+.draft-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.btn-xs {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--c-border-hover);
+    color: var(--c-text-title);
+    padding: 0.28rem 0.65rem;
+    border-radius: var(--r-xs);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: all var(--t-fast);
+    white-space: nowrap;
+}
+
+.btn-xs:hover {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+
+/* ─── 4. CONTROLES DE BACKUP / RESTORE ───────────────────────── */
+.sidebar-footer {
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.backup-actions-bar {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.btn-backup {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.45rem 0.7rem;
+    border-radius: var(--r-xs);
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
+    color: var(--c-text-body);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    transition: all var(--t-fast);
+    flex: 1;
+    white-space: nowrap;
+}
+
+.btn-backup:hover {
+    border-color: var(--c-border-hover);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--c-text-title);
+}
+
+.btn-backup svg {
+    width: 14px;
+    height: 14px;
+    color: var(--c-primary-light);
+    flex-shrink: 0;
+}
+
+.backup-summary-box {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--c-text-body);
+}
+
+/* ─── 5. MODAL DE CONFIRMACIÓN UNIVERSAL Y TOAST DESHACER ────── */
+.modal-panel--sm {
+    max-width: 440px;
+}
+
+.confirm-consequences {
+    background: var(--c-warning-bg);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--r-sm);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.toast-action-btn {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-left: auto;
+    white-space: nowrap;
+    transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.toast-action-btn:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* ─── 6. BARRA DE FILTROS Y ORDENAMIENTO + EMPTY STATE CTA ───── */
+.trips-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.trips-controls-row .filter-bar {
+    margin-bottom: 0;
+}
+
+.sort-control-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.sort-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--c-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.sort-select {
+    background-color: rgba(6, 9, 17, 0.7);
+    border: 1.5px solid var(--c-border);
+    color: var(--c-text-title);
+    border-radius: var(--r-sm);
+    padding: 0.4rem 2rem 0.4rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    width: auto;
+    min-width: 175px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.65rem center;
+    cursor: pointer;
+    transition: all var(--t-fast);
+}
+
+.sort-select:hover {
+    border-color: var(--c-border-hover);
+}
+
+.sort-select:focus {
+    outline: none;
+    border-color: var(--c-primary-light);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    background-color: rgba(6, 9, 17, 0.95);
+}
+
+.empty-state-cta {
+    margin-top: 1rem;
+}
+
+/* Estados vacíos de flota y choferes */
+#tab-camiones .fleet-empty-state {
+    grid-column: 1 / -1;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    padding: 2.5rem 1.5rem;
+    background: var(--c-surface-glass);
+    border: 1px dashed rgba(96, 165, 250, 0.28);
+    border-radius: var(--r-lg);
+    text-align: center;
+}
+
+#tab-camiones .fleet-empty-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-primary-light);
+    background: var(--c-primary-bg);
+    border: 1px solid rgba(96, 165, 250, 0.24);
+    border-radius: 50%;
+}
+
+#tab-camiones .fleet-empty-icon svg {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+#tab-camiones .fleet-empty-state strong {
+    color: var(--c-text-title);
+    font-size: 1rem;
+}
+
+#tab-camiones .fleet-empty-state p {
+    max-width: 34rem;
+    color: var(--c-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    #tab-camiones .fleet-empty-state {
+        min-height: 220px;
+        padding: 2rem 1rem;
+    }
+}
+
+/* ─── 7. ALERTAS DE LICENCIAS DE CHOFERES ────────────────────── */
+.cnr-badge--carnet.vto-unknown {
+    background: rgba(148, 163, 184, 0.14);
+    color: #cbd5e1;
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+}
+
+.licencias-alert-banner {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: var(--r-md);
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.85rem;
+    font-size: 0.82rem;
+    color: var(--c-text-body);
+    line-height: 1.45;
+}
+
+.licencias-alert-banner.is-danger {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ─── 8. REDUCED MOTION (ACCESIBILIDAD) ──────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .viaje-card-v2:hover,
+    .camion-card:hover,
+    .camionero-card:hover,
+    .btn-primary:hover:not(:disabled) {
+        transform: none !important;
+    }
+
+    /* Mantener feedback funcional en el spinner de carga pero más suave */
+    .spinner {
+        animation-duration: 1.5s !important;
+        animation-iteration-count: infinite !important;
+    }
+}
+
+/* ─── 9. AJUSTES RESPONSIVE ADICIONALES (MOBILE <= 768px) ────── */
+@media (max-width: 768px) {
+    .trips-controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .trips-controls-row .filter-bar {
+        width: 100%;
+    }
+
+    .sort-control-wrap {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .sort-select {
+        flex: 1;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .backup-actions-bar {
+        width: 100%;
+    }
+
+    .btn-backup {
+        flex: 1 1 calc(50% - 0.25rem);
+    }
+
+    .draft-banner,
+    .licencias-alert-banner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .draft-banner-actions {
+        justify-content: flex-end;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MIS VIAJES — REDISEÑO DE INTERFAZ
+   Centra el contenido, unifica controles y aumenta la legibilidad.
+   No altera datos, remitos ni lógica: solo presentación.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Contenedor centrado con ancho de lectura cómodo */
+#tab-mis-viajes {
+    width: 100%;
+    max-width: 1180px;
+    margin-inline: auto;
+    padding-bottom: 1rem;
+}
+
+/* Cabecera: título y buscador alineados, con separador suave */
+#tab-mis-viajes .trips-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--c-border);
+}
+
+#tab-mis-viajes .section-title {
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+}
+
+#tab-mis-viajes .section-subtitle {
+    font-size: 0.85rem;
+    max-width: 48ch;
+    line-height: 1.45;
+}
+
+/* Buscador más grande y fácil de ubicar */
+#tab-mis-viajes .search-box {
+    width: 100%;
+    max-width: 380px;
+}
+
+#tab-mis-viajes .search-input {
+    padding: 0.8rem 1rem 0.8rem 2.65rem;
+    font-size: 0.95rem;
+    border-radius: var(--r-md);
+}
+
+#tab-mis-viajes .search-icon {
+    left: 0.95rem;
+    width: 18px;
+    height: 18px;
+}
+
+/* Filtros + orden agrupados en una sola barra */
+#tab-mis-viajes .trips-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--c-surface-glass);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+#tab-mis-viajes .trips-controls-row .filter-bar {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    gap: 0.35rem;
+}
+
+/* Filtros tipo control segmentado */
+#tab-mis-viajes .filter-btn {
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    border-radius: var(--r-sm);
+    background: transparent;
+    border-color: transparent;
+}
+
+#tab-mis-viajes .filter-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: transparent;
+}
+
+#tab-mis-viajes .filter-btn.active {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+}
+
+#tab-mis-viajes .sort-label {
+    font-size: 0.7rem;
+}
+
+#tab-mis-viajes .sort-select {
+    padding: 0.55rem 2rem 0.55rem 0.85rem;
+    font-size: 0.85rem;
+}
+
+/* Grilla: dos columnas cómodas en escritorio, una en pantallas chicas */
+#tab-mis-viajes .trips-grid {
+    grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+    gap: 1.15rem;
+}
+
+/* Tarjeta más amplia, legible y con jerarquía clara */
+#tab-mis-viajes .viaje-card-v2 {
+    padding: 1.4rem 1.5rem;
+    gap: 1.15rem;
+    border-radius: var(--r-lg);
+}
+
+/* Deja aire a la derecha para que el botón de remito no tape el ID */
+#tab-mis-viajes .vc2-estado-bar {
+    padding-right: 3.1rem;
+}
+
+#tab-mis-viajes .vc2-estado-badge {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+}
+
+#tab-mis-viajes .vc2-id {
+    font-size: 0.8rem;
+}
+
+#tab-mis-viajes .vc2-ciudad {
+    font-size: 1.05rem;
+}
+
+#tab-mis-viajes .vc2-provincia {
+    font-size: 0.78rem;
+}
+
+#tab-mis-viajes .vc2-metricas {
+    padding: 0.75rem 1rem;
+}
+
+#tab-mis-viajes .vc2-metrica-val {
+    font-size: 0.95rem;
+}
+
+#tab-mis-viajes .vc2-metrica-lbl {
+    font-size: 0.66rem;
+}
+
+#tab-mis-viajes .vc2-tag {
+    font-size: 0.76rem;
+    padding: 0.3rem 0.6rem;
+}
+
+#tab-mis-viajes .btn-download {
+    top: 1.05rem;
+    right: 1.15rem;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+}
+
+/* Estado vacío más claro y proporcionado */
+#tab-mis-viajes .empty-state {
+    grid-column: 1 / -1;
+    padding: 4rem 1.5rem;
+    background: var(--c-surface-glass);
+    border: 1px dashed var(--c-border);
+    border-radius: var(--r-lg);
+    font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+    #tab-mis-viajes .trips-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    #tab-mis-viajes .search-box {
+        max-width: none;
+    }
+
+    /* Barra de controles apilada y ordenada */
+    #tab-mis-viajes .trips-controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    #tab-mis-viajes .trips-controls-row .filter-bar {
+        width: 100%;
+        justify-content: flex-start;
+        overflow-x: auto;
+        padding-bottom: 2px;
+    }
+
+    #tab-mis-viajes .filter-btn {
+        flex: 0 0 auto;
+    }
+
+    #tab-mis-viajes .sort-control-wrap {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #tab-mis-viajes .sort-select {
+        flex: 1;
+        min-width: 0;
+        width: 100%;
+    }
+
+    #tab-mis-viajes .trips-grid {
+        grid-template-columns: 1fr;
     }
 }

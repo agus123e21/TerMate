@@ -68,7 +68,7 @@
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            navigator.serviceWorker.register('sw.js?v=4.2.1').then(reg => {
+            navigator.serviceWorker.register('sw.js?v=4.2.2').then(reg => {
                 if (isLocalhost) {
                     reg.update();
                 }
@@ -238,6 +238,41 @@
         return dt.getUTCFullYear() === y && (dt.getUTCMonth() + 1) === m && dt.getUTCDate() === d;
     }
 
+    function esFotoDataUrlValida(val) {
+        if (typeof val !== 'string') return false;
+        return /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(val.trim());
+    }
+
+    function leerConfiguracion() {
+        try {
+            const cfg = JSON.parse(localStorage.getItem('termate_config') || '{}') || {};
+            return {
+                empresa: (typeof cfg.empresa === 'string' && cfg.empresa.trim()) ? cfg.empresa.trim() : 'TerMate',
+                precioGasoil: Number(cfg.precioGasoil) > 0 ? Number(cfg.precioGasoil) : 1200,
+                mapaDefault: cfg.mapaDefault === 'satellite' ? 'satellite' : 'streets'
+            };
+        } catch {
+            return { empresa: 'TerMate', precioGasoil: 1200, mapaDefault: 'streets' };
+        }
+    }
+
+    function aplicarConfiguracion() {
+        const cfg = leerConfiguracion();
+        const brandDesktop = document.querySelector('.sidebar-brand .brand-name');
+        const brandMobile = document.querySelector('.brand-name-sm');
+        if (brandDesktop) brandDesktop.textContent = cfg.empresa;
+        if (brandMobile) brandMobile.textContent = cfg.empresa;
+        document.querySelectorAll('.map-layer-btn').forEach(b => {
+            const act = b.dataset.layer === cfg.mapaDefault;
+            b.classList.toggle('active', act);
+            b.setAttribute('aria-pressed', act ? 'true' : 'false');
+        });
+        document.querySelectorAll('.inline-layer-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.layer === cfg.mapaDefault);
+        });
+        return cfg;
+    }
+
     function generarBackupPayload() {
         const maxEnvioId = envios.reduce((max, e) => Math.max(max, Number(e?.id) || 0), 0);
         const maxCamionId = camiones.reduce((max, c) => Math.max(max, Number(c?.id) || 0), 0);
@@ -381,6 +416,14 @@
                 }
             }
 
+            let fotoSanitizada = null;
+            if (item.foto !== undefined && item.foto !== null && item.foto !== '') {
+                if (!esFotoDataUrlValida(item.foto)) {
+                    return { ok: false, error: `Coleccion "camiones" (registro #${id}): formato de foto invalido.` };
+                }
+                fotoSanitizada = item.foto.trim();
+            }
+
             camionesNorm.push({
                 ...item,
                 id,
@@ -393,7 +436,8 @@
                 largo: item.largo,
                 ancho: item.ancho,
                 consumoVacio: item.consumoVacio,
-                consumoLleno: item.consumoLleno
+                consumoLleno: item.consumoLleno,
+                foto: fotoSanitizada
             });
         }
 
@@ -509,6 +553,14 @@
                 }
             }
 
+            let fotoCnrSanitizada = null;
+            if (item.foto !== undefined && item.foto !== null && item.foto !== '') {
+                if (!esFotoDataUrlValida(item.foto)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${id}): formato de foto invalido.` };
+                }
+                fotoCnrSanitizada = item.foto.trim();
+            }
+
             camionerosNorm.push({
                 ...item,
                 id,
@@ -521,7 +573,8 @@
                 carnetVto: typeof item.carnetVto === 'string' ? item.carnetVto.trim() : '',
                 camionAsignadoId,
                 capacitaciones,
-                historial
+                historial,
+                foto: fotoCnrSanitizada
             });
         }
 
@@ -640,24 +693,42 @@
             enviosNorm.push(envioNormalizado);
         }
 
-        // Consistencia referencial entre colecciones:
-        // Nota de diseno: al eliminar un camion en el runtime normal, envios.camionId y camioneros.camionAsignadoId
-        // se ponen en null, pero editar un chofer no limpia retroactivamente camion.camioneroId ni viceversa.
-        // Sin embargo, cualquier ID no nulo en un backup debe apuntar a un registro existente en su coleccion destino
-        // para evitar referencias rotas o corruptas inyectadas manualmente.
+        // Consistencia referencial bidireccional entre colecciones
         for (const env of enviosNorm) {
             if (env.camionId !== null && !idsCamiones.has(env.camionId)) {
                 return { ok: false, error: `Coleccion "envios" (registro #${env.id}): "camionId" (#${env.camionId}) no corresponde a ningun camion del respaldo.` };
             }
         }
+        const choferesAsignados = new Set();
         for (const cam of camionesNorm) {
-            if (cam.camioneroId !== null && !idsCamioneros.has(cam.camioneroId)) {
-                return { ok: false, error: `Coleccion "camiones" (registro #${cam.id}): "camioneroId" (#${cam.camioneroId}) no corresponde a ningun chofer del respaldo.` };
+            if (cam.camioneroId !== null) {
+                if (!idsCamioneros.has(cam.camioneroId)) {
+                    return { ok: false, error: `Coleccion "camiones" (registro #${cam.id}): "camioneroId" (#${cam.camioneroId}) no corresponde a ningun chofer del respaldo.` };
+                }
+                if (choferesAsignados.has(cam.camioneroId)) {
+                    return { ok: false, error: `Inconsistencia: chofer #${cam.camioneroId} asignado a multiples camiones.` };
+                }
+                choferesAsignados.add(cam.camioneroId);
+                const cnr = camionerosNorm.find(x => x.id === cam.camioneroId);
+                if (cnr && cnr.camionAsignadoId !== cam.id) {
+                    return { ok: false, error: `Asimetria referencial: camion #${cam.id} apunta al chofer #${cam.camioneroId}, pero el chofer apunta a camionAsignadoId=${String(cnr.camionAsignadoId)}.` };
+                }
             }
         }
+        const camionesAsignados = new Set();
         for (const cnr of camionerosNorm) {
-            if (cnr.camionAsignadoId !== null && !idsCamiones.has(cnr.camionAsignadoId)) {
-                return { ok: false, error: `Coleccion "camioneros" (registro #${cnr.id}): "camionAsignadoId" (#${cnr.camionAsignadoId}) no corresponde a ningun camion del respaldo.` };
+            if (cnr.camionAsignadoId !== null) {
+                if (!idsCamiones.has(cnr.camionAsignadoId)) {
+                    return { ok: false, error: `Coleccion "camioneros" (registro #${cnr.id}): "camionAsignadoId" (#${cnr.camionAsignadoId}) no corresponde a ningun camion del respaldo.` };
+                }
+                if (camionesAsignados.has(cnr.camionAsignadoId)) {
+                    return { ok: false, error: `Inconsistencia: camion #${cnr.camionAsignadoId} asignado a multiples choferes.` };
+                }
+                camionesAsignados.add(cnr.camionAsignadoId);
+                const cam = camionesNorm.find(x => x.id === cnr.camionAsignadoId);
+                if (cam && cam.camioneroId !== cnr.id) {
+                    return { ok: false, error: `Asimetria referencial: chofer #${cnr.id} apunta al camion #${cnr.camionAsignadoId}, pero el camion apunta a camioneroId=${String(cam.camioneroId)}.` };
+                }
             }
         }
 
@@ -803,11 +874,11 @@
 
         cancelarEdicion();
         cerrarDetalle(true);
-        cerrarModalViaje(true);
         cerrarModalCamion(true);
         cerrarModalCamionero(true);
         cerrarModalComportamiento(true);
         cerrarPerfilCamionero(true);
+        cerrarModalConfig(true);
 
         renderListaCamiones();
         renderListaCamioneros();
@@ -816,6 +887,17 @@
 
         showToast('Copia de seguridad restaurada con exito.', 'success');
         return { ok: true };
+    }
+
+    function generarNumeroRemito() {
+        return `R-0001-${String(Math.floor(10000000 + Math.random() * 90000000))}`;
+    }
+
+    function asegurarRemitoEnFormulario() {
+        const remEl = document.getElementById('remito');
+        if (remEl && !remEl.value.trim()) {
+            remEl.value = generarNumeroRemito();
+        }
     }
 
     // ─── BORRADOR LOCAL DE NUEVA RUTA ─────────────────────────
@@ -828,15 +910,17 @@
             const pesoCarga = document.getElementById('peso-carga')?.value || '';
             const estado = document.getElementById('estado')?.value || 'Pendiente';
             const camionId = document.getElementById('select-camion')?.value || '';
+            const cliente = document.getElementById('cliente')?.value || '';
+            const remito = document.getElementById('remito')?.value || '';
 
-            const tieneDatos = Boolean(origen.trim() || destino.trim() || producto.trim() || pesoCarga.trim() || camionId);
+            const tieneDatos = Boolean(origen.trim() || destino.trim() || producto.trim() || pesoCarga.trim() || camionId || cliente.trim());
             if (!tieneDatos) {
                 localStorage.removeItem(KEY_DRAFT_RUTA);
                 document.getElementById('draft-banner')?.classList.add('hidden');
                 return;
             }
 
-            const draft = { origen, destino, producto, pesoCarga, estado, camionId, updatedAt: Date.now() };
+            const draft = { origen, destino, producto, pesoCarga, estado, camionId, cliente, remito, updatedAt: Date.now() };
             localStorage.setItem(KEY_DRAFT_RUTA, JSON.stringify(draft));
         } catch {}
     }
@@ -857,6 +941,7 @@
                 (typeof draft.destino === 'string' && draft.destino.trim()) ||
                 (typeof draft.producto === 'string' && draft.producto.trim()) ||
                 (typeof draft.pesoCarga === 'string' && draft.pesoCarga.trim()) ||
+                (typeof draft.cliente === 'string' && draft.cliente.trim()) ||
                 (typeof draft.camionId === 'string' && draft.camionId)
             );
             if (!tieneContenido) {
@@ -868,6 +953,8 @@
             if (typeof draft.destino === 'string') document.getElementById('destino').value = draft.destino;
             if (typeof draft.producto === 'string') document.getElementById('producto').value = draft.producto;
             if (typeof draft.pesoCarga === 'string') document.getElementById('peso-carga').value = draft.pesoCarga;
+            if (typeof draft.cliente === 'string' && document.getElementById('cliente')) document.getElementById('cliente').value = draft.cliente;
+            if (typeof draft.remito === 'string' && draft.remito.trim() && document.getElementById('remito')) document.getElementById('remito').value = draft.remito;
             if (typeof draft.estado === 'string' && ['Pendiente', 'En Transito', 'Entregado'].includes(draft.estado)) {
                 document.getElementById('estado').value = draft.estado;
             }
@@ -891,6 +978,7 @@
         document.getElementById('draft-banner')?.classList.add('hidden');
         if (mostrarAviso) {
             document.getElementById('form-envio')?.reset();
+            asegurarRemitoEnFormulario();
             limpiarErroresFormulario('form-envio');
             document.getElementById('resultado-ruta')?.classList.add('hidden');
             showToast('Borrador descartado.', 'info');
@@ -997,7 +1085,7 @@
                     ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeoutSignal]) : signal)
                     : timeoutSignal;
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-                    headers: { 'User-Agent': 'TerMateLogistics/3.0' },
+                    headers: { 'Accept': 'application/json' },
                     signal: fetchSignal
                 });
                 if (res.ok) {
@@ -1011,7 +1099,9 @@
                             const provincia = addr.state || '';
 
                             let principal = calle ? `${calle}${altura}` : (localidad || provincia || item.display_name.split(',')[0]);
-                            let secundario = [localidad, provincia].filter(Boolean).join(', ') || 'Argentina';
+                            let locPart = (localidad && localidad.toLowerCase() !== principal.toLowerCase()) ? localidad : '';
+                            let provPart = (provincia && provincia.toLowerCase() !== principal.toLowerCase() && provincia.toLowerCase() !== locPart.toLowerCase()) ? provincia : '';
+                            let secundario = [locPart, provPart].filter(Boolean).join(', ') || 'Argentina';
 
                             return {
                                 completo: `${principal}, ${secundario}`,
@@ -1055,16 +1145,41 @@
                     countrycodes: 'ar'
                 });
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-                    headers: { 'User-Agent': 'TerMateLogistics/3.0' },
-                    signal: AbortSignal.timeout(4000)
+                    headers: { 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(4500)
                 });
                 if (res.ok) {
                     const data = await res.json();
                     if (data?.length > 0) {
-                        const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-                        cacheGeo[key] = coords;
-                        guardarGeoCache();
-                        return coords;
+                        const lat = parseFloat(data[0].lat);
+                        const lon = parseFloat(data[0].lon);
+                        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                            const coords = [lat, lon];
+                            cacheGeo[key] = coords;
+                            guardarGeoCache();
+                            return coords;
+                        }
+                    }
+                }
+            } catch {}
+
+            // Fallback geocoder Photon (OSM) si Nominatim falla o bloquea
+            try {
+                const pParams = new URLSearchParams({ q: `${direccion}, Argentina`, limit: 1 });
+                const pRes = await fetch(`https://photon.komoot.io/api/?${pParams}`, {
+                    signal: AbortSignal.timeout(4500)
+                });
+                if (pRes.ok) {
+                    const pData = await pRes.json();
+                    const feat = pData?.features?.[0];
+                    const rawC = feat?.geometry?.coordinates;
+                    if (Array.isArray(rawC) && rawC.length >= 2) {
+                        const coords = [Number(rawC[1]), Number(rawC[0])];
+                        if (esCoordArgentinaValida(coords)) {
+                            cacheGeo[key] = coords;
+                            guardarGeoCache();
+                            return coords;
+                        }
                     }
                 }
             } catch {}
@@ -1086,27 +1201,33 @@
     // 6. MOTOR DE RUTEO
     // ═══════════════════════════════════════════════════════════
     async function obtenerRutaOSRM(cOrigen, cDestino) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${cOrigen[1]},${cOrigen[0]};${cDestino[1]},${cDestino[0]}?overview=full&geometries=geojson&steps=true`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(7000) });
-        if (!res.ok) throw new Error('OSRM_ERROR');
-        const data = await res.json();
+        const coordsPair = `${cOrigen[1]},${cOrigen[0]};${cDestino[1]},${cDestino[0]}`;
+        const endpoints = [
+            `https://router.project-osrm.org/route/v1/driving/${coordsPair}?overview=full&geometries=geojson`,
+            `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsPair}?overview=full&geometries=geojson`
+        ];
 
-        if (data.code === 'Ok' && data.routes?.length > 0) {
-            const r = data.routes[0];
-            const calles = [];
-            (r.legs || []).forEach(leg => {
-                (leg.steps || []).forEach(step => {
-                    const name = step.name && step.name.trim();
-                    if (name && !calles.includes(name)) calles.push(name);
-                });
-            });
-            return {
-                distancia: r.distance / 1000,
-                tiempo: (r.duration / 3600) * 1.15, // Ajuste para velocidad media de camion con carga
-                coordenadas: r.geometry.coordinates.map(c => [c[1], c[0]]),
-                calles,
-                warnings: []
-            };
+        for (const url of endpoints) {
+            try {
+                const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
+                if (!res.ok) continue;
+                const data = await res.json();
+                if (data?.code === 'Ok' && data.routes?.length > 0) {
+                    const r = data.routes[0];
+                    const rawCoords = r.geometry?.coordinates;
+                    if (Array.isArray(rawCoords) && rawCoords.length >= 2) {
+                        return {
+                            distancia: r.distance / 1000,
+                            tiempo: (r.duration / 3600) * 1.15, // Ajuste para velocidad media de camion con carga
+                            coordenadas: rawCoords.map(c => [c[1], c[0]]),
+                            calles: [],
+                            warnings: []
+                        };
+                    }
+                }
+            } catch {
+                // Intentar siguiente servidor vial
+            }
         }
         throw new Error('Sin ruta disponible');
     }
@@ -1210,11 +1331,13 @@
             maxZoom: 18
         };
 
+        const cfgMapa = leerConfiguracion().mapaDefault;
+
         // 1. Mapa Full (Tab Principal)
         if (!mapaFull && document.getElementById('mapa')) {
             try {
                 mapaFull = L.map('mapa', { ...mapOpts, scrollWheelZoom: true }).setView([-38.4, -63.6], 5);
-                cambiarCapaMapa(mapaFull, 'streets');
+                cambiarCapaMapa(mapaFull, cfgMapa);
             } catch (err) {
                 console.error(err);
             }
@@ -1229,7 +1352,7 @@
                     dragging: !isMobile,
                     tap: true
                 }).setView([-38.4, -63.6], 4);
-                cambiarCapaMapa(mapaInline, 'streets');
+                cambiarCapaMapa(mapaInline, cfgMapa);
             } catch (err) {
                 console.error(err);
             }
@@ -1507,13 +1630,18 @@
         }
         if (filtroBuscar) {
             const q = filtroBuscar.toLowerCase();
-            lista = lista.filter(e =>
-                (e.origen || '').toLowerCase().includes(q) ||
-                (e.destino || '').toLowerCase().includes(q) ||
-                (e.producto || '').toLowerCase().includes(q) ||
-                (e.cliente && e.cliente.toLowerCase().includes(q)) ||
-                (e.remito && e.remito.toLowerCase().includes(q))
-            );
+            lista = lista.filter(e => {
+                const cam = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
+                return (e.origen || '').toLowerCase().includes(q) ||
+                    (e.destino || '').toLowerCase().includes(q) ||
+                    (e.producto || '').toLowerCase().includes(q) ||
+                    (e.cliente && e.cliente.toLowerCase().includes(q)) ||
+                    (e.remito && e.remito.toLowerCase().includes(q)) ||
+                    (cam?.nombre && cam.nombre.toLowerCase().includes(q)) ||
+                    (cam?.patente && cam.patente.toLowerCase().includes(q)) ||
+                    (e.camionNombre && e.camionNombre.toLowerCase().includes(q)) ||
+                    (e.camionPatente && e.camionPatente.toLowerCase().includes(q));
+            });
         }
 
         // Ordenamiento determinista
@@ -1569,8 +1697,8 @@
         }
 
         c.innerHTML = lista.map(e => {
-            const clase = e.estado === 'Pendiente' ? 'pendiente' : e.estado === 'En Transito' ? 'transito' : 'entregado';
-            const estadoLabel = e.estado === 'Pendiente' ? 'Pendiente' : e.estado === 'En Transito' ? 'En Ruta' : 'Entregado';
+            const clase = e.estado === 'Pendiente' ? 'pendiente' : e.estado === 'En Transito' ? 'transito' : e.estado === 'Cancelado' ? 'cancelado' : 'entregado';
+            const estadoLabel = e.estado === 'Pendiente' ? 'Pendiente' : e.estado === 'En Transito' ? 'En Ruta' : e.estado === 'Cancelado' ? 'Cancelado' : 'Entregado';
             const camion = e.camionId ? camiones.find(c => c.id === e.camionId) : null;
             const dist   = formatoDistancia(e.distancia);
             const tiempo = formatoTiempo(e.tiempo);
@@ -1788,9 +1916,19 @@
         if (!vto || typeof vto !== 'string' || !vto.trim()) {
             return { clase: 'vto-unknown', estado: 'sin_fecha', dias: null };
         }
-        const vtoDate = new Date(vto);
-        if (isNaN(vtoDate.getTime())) {
-            return { clase: 'vto-unknown', estado: 'fecha_invalida', dias: null };
+        const trimmed = vto.trim();
+        let vtoDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            if (!esFechaYYYYMMDDValida(trimmed)) {
+                return { clase: 'vto-unknown', estado: 'fecha_invalida', dias: null };
+            }
+            const [y, m, d] = trimmed.split('-').map(Number);
+            vtoDate = new Date(y, m - 1, d);
+        } else {
+            vtoDate = new Date(trimmed);
+            if (isNaN(vtoDate.getTime())) {
+                return { clase: 'vto-unknown', estado: 'fecha_invalida', dias: null };
+            }
         }
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
@@ -1903,8 +2041,8 @@
     }
 
     function getFotoGenericaChofer(id = 0, fotoPersonalizada = null) {
-        if (typeof fotoPersonalizada === 'string' && fotoPersonalizada.startsWith('data:image/')) {
-            return `<img src="${fotoPersonalizada}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
+        if (esFotoDataUrlValida(fotoPersonalizada)) {
+            return `<img src="${escapeHTML(fotoPersonalizada.trim())}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
         }
         const fotos = [
             'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&h=160&q=75',
@@ -1918,8 +2056,8 @@
     }
 
     function getFotoGenericaCamion(id = 0, fotoPersonalizada = null) {
-        if (typeof fotoPersonalizada === 'string' && fotoPersonalizada.startsWith('data:image/')) {
-            return `<img src="${fotoPersonalizada}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
+        if (esFotoDataUrlValida(fotoPersonalizada)) {
+            return `<img src="${escapeHTML(fotoPersonalizada.trim())}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
         }
         const fotos = [
             'assets/img/camiones/scania.webp',
@@ -1935,12 +2073,22 @@
 
         renderBannerLicencias();
 
+        const addCardHtml = `
+            <button type="button" class="fleet-add-card fleet-add-card--chofer" aria-label="Agregar nuevo chofer">
+                <span class="fleet-add-card-icon" aria-hidden="true">+</span>
+                <span class="fleet-add-card-title">Agregar Chofer</span>
+                <span class="fleet-add-card-sub">Registrar nuevo conductor</span>
+            </button>`;
+
         if (camioneros.length === 0) {
             c.innerHTML = `<div class="empty-state fleet-empty-state">
                 <div class="fleet-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
                 <strong>La lista de choferes está vacía</strong>
                 <p>Registrá a los conductores para asignarlos a tus camiones y controlar sus licencias.</p>
-            </div>`;
+            </div>` + addCardHtml;
+            c.querySelector('.fleet-add-card--chofer')?.addEventListener('click', (e) => {
+                abrirModalCamionero(null, e.currentTarget);
+            });
             return;
         }
 
@@ -2008,12 +2156,22 @@
         const c = document.getElementById('lista-camiones');
         if (!c) return;
 
+        const addCardCamHtml = `
+            <button type="button" class="fleet-add-card fleet-add-card--camion" aria-label="Agregar nuevo camión">
+                <span class="fleet-add-card-icon" aria-hidden="true">+</span>
+                <span class="fleet-add-card-title">Agregar Camión</span>
+                <span class="fleet-add-card-sub">Sumar unidad a la flota</span>
+            </button>`;
+
         if (camiones.length === 0) {
             c.innerHTML = `<div class="empty-state fleet-empty-state">
                 <div class="fleet-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="1" y="11" width="15" height="10" rx="1"/><path d="M16 11l4 3v7h-4V11z"/><circle cx="5.5" cy="21" r="1.5"/><circle cx="18.5" cy="21" r="1.5"/><path d="M1 8h9M1 5h6"/></svg></div>
                 <strong>La flota todavía está vacía</strong>
                 <p>Agregá un camión para guardar sus medidas, capacidad y consumo.</p>
-            </div>`;
+            </div>` + addCardCamHtml;
+            c.querySelector('.fleet-add-card--camion')?.addEventListener('click', (e) => {
+                abrirModalCamion(null, e.currentTarget);
+            });
             return;
         }
 
@@ -2463,44 +2621,6 @@
         return restaurarFocoModal('modal-detalle', omitirRestauracion);
     }
 
-    function abrirModalViaje(envioExistente, triggerEl = null) {
-        const m = document.getElementById('modal-viaje');
-        if (!m) return;
-
-        limpiarErroresFormulario('form-viaje');
-
-        const vjSel = document.getElementById('vj-select-camion');
-        if (vjSel) {
-            vjSel.innerHTML = '<option value="">-- Seleccionar camion --</option>' +
-                camiones.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)} (${escapeHTML(c.patente || 'S/P')})</option>`).join('');
-            vjSel.value = envioExistente?.camionId || (rutaPendiente?.camionId || '');
-        }
-
-        if (envioExistente) {
-            document.getElementById('vj-cliente').value = envioExistente.cliente || '';
-            document.getElementById('vj-remito').value = envioExistente.remito || '';
-        } else {
-            document.getElementById('form-viaje')?.reset();
-            if (vjSel) vjSel.value = rutaPendiente?.camionId || '';
-            const randomRemito = `R-0001-${String(Math.floor(10000000 + Math.random() * 90000000))}`;
-            document.getElementById('vj-remito').value = randomRemito;
-        }
-
-        m.classList.remove('hidden');
-        activarFocoModal('modal-viaje', '#vj-cliente', triggerEl);
-    }
-
-    function cerrarModalViaje(omitirRestauracion = false) {
-        document.getElementById('modal-viaje')?.classList.add('hidden');
-        limpiarErroresFormulario('form-viaje');
-        idEnvioEditando = null;
-        rutaPendiente = null;
-        if (mapaInline) {
-            actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false);
-        }
-        return restaurarFocoModal('modal-viaje', omitirRestauracion);
-    }
-
     function iniciarEdicion(id) {
         const e = envios.find(x => x.id === id);
         if (!e) return;
@@ -2515,6 +2635,8 @@
         document.getElementById('peso-carga').value = e.pesoCarga || '';
         document.getElementById('estado').value = e.estado;
         document.getElementById('select-camion').value = e.camionId || '';
+        if (document.getElementById('cliente')) document.getElementById('cliente').value = e.cliente || '';
+        if (document.getElementById('remito')) document.getElementById('remito').value = e.remito || '';
 
         document.getElementById('form-titulo').textContent = `Editar Ruta #${String(id).padStart(4, '0')}`;
         document.getElementById('btn-submit-texto').textContent = 'Guardar Cambios';
@@ -2527,6 +2649,7 @@
         idEnvioEditando = null;
         rutaPendiente = null;
         document.getElementById('form-envio')?.reset();
+        asegurarRemitoEnFormulario();
         limpiarErroresFormulario('form-envio');
         document.getElementById('form-titulo').textContent = 'Nueva Ruta de Transporte';
         document.getElementById('btn-submit-texto').textContent = 'Calcular Ruta y Emitir';
@@ -2548,7 +2671,9 @@
             ['origen', 'err-origen'],
             ['destino', 'err-destino'],
             ['producto', 'err-producto'],
-            ['select-camion', 'err-select-camion']
+            ['select-camion', 'err-select-camion'],
+            ['cliente', 'err-cliente'],
+            ['remito', 'err-remito']
         ];
         camposFormEnvio.forEach(([inputId, errId]) => {
             const el = document.getElementById(inputId);
@@ -2564,39 +2689,36 @@
         ['peso-carga', 'estado'].forEach(fid => {
             const el = document.getElementById(fid);
             if (!el) return;
-            el.addEventListener('input', guardarBorradorRuta);
-            el.addEventListener('change', guardarBorradorRuta);
+            el.addEventListener('input', () => {
+                if (fid === 'peso-carga') limpiarErrorCampo('peso-carga', 'err-peso-carga');
+                guardarBorradorRuta();
+            });
+            el.addEventListener('change', () => {
+                if (fid === 'peso-carga') limpiarErrorCampo('peso-carga', 'err-peso-carga');
+                guardarBorradorRuta();
+            });
         });
 
         document.getElementById('btn-descartar-borrador')?.addEventListener('click', () => {
             limpiarBorradorRuta(true);
         });
 
-        // Limpiar errores inline en modal de emision de viaje
-        [
-            ['vj-select-camion', 'err-vj-select-camion'],
-            ['vj-cliente', 'err-vj-cliente'],
-            ['vj-remito', 'err-vj-remito']
-        ].forEach(([inputId, errId]) => {
-            const el = document.getElementById(inputId);
-            if (!el) return;
-            const handler = () => {
-                if (el.value.trim()) limpiarErrorCampo(inputId, errId);
-            };
-            el.addEventListener('input', handler);
-            el.addEventListener('change', handler);
-        });
-
-        // Envio de formulario de ruta
+        // Envio directo de formulario de ruta (sin modal de confirmacion)
         const formEnvio = document.getElementById('form-envio');
         formEnvio?.addEventListener('submit', async e => {
             e.preventDefault();
             const origen = document.getElementById('origen').value.trim();
             const destino = document.getElementById('destino').value.trim();
             const producto = document.getElementById('producto').value.trim();
-            const pesoCarga = parseFloat(document.getElementById('peso-carga').value) || null;
+            const pesoRawStr = (document.getElementById('peso-carga').value || '').trim();
+            const pesoRawNum = pesoRawStr === '' ? null : Number(pesoRawStr);
+            const pesoCarga = pesoRawNum;
             const estado = document.getElementById('estado').value;
             const camionId = parseInt(document.getElementById('select-camion').value) || null;
+            const camionSel = camionId ? camiones.find(c => c.id === camionId) : null;
+            const cliente = (document.getElementById('cliente')?.value || '').trim();
+            const remitoInput = (document.getElementById('remito')?.value || '').trim();
+            const remito = remitoInput || generarNumeroRemito();
 
             limpiarErroresFormulario('form-envio');
             let primerInvalido = null;
@@ -2613,9 +2735,20 @@
                 mostrarErrorCampo('producto', 'err-producto', 'Describe el producto o tipo de mercaderia.');
                 if (!primerInvalido) primerInvalido = document.getElementById('producto');
             }
+            if (pesoRawStr !== '' && (!Number.isFinite(pesoRawNum) || pesoRawNum <= 0)) {
+                mostrarErrorCampo('peso-carga', 'err-peso-carga', 'El peso de carga debe ser mayor a 0 tn.');
+                if (!primerInvalido) primerInvalido = document.getElementById('peso-carga');
+            } else if (camionSel && pesoRawNum !== null && pesoRawNum > camionSel.peso) {
+                mostrarErrorCampo('peso-carga', 'err-peso-carga', `Supera la capacidad del camion (${camionSel.peso} tn max).`);
+                if (!primerInvalido) primerInvalido = document.getElementById('peso-carga');
+            }
             if (!camionId) {
                 mostrarErrorCampo('select-camion', 'err-select-camion', 'Selecciona un camion de la flota para este despacho.');
                 if (!primerInvalido) primerInvalido = document.getElementById('select-camion');
+            }
+            if (envios.some(x => x.id !== idEnvioEditando && (x.remito || '').trim().toUpperCase() === remito.toUpperCase())) {
+                mostrarErrorCampo('remito', 'err-remito', 'Este numero de remito ya existe en otro despacho.');
+                if (!primerInvalido) primerInvalido = document.getElementById('remito');
             }
 
             if (primerInvalido) {
@@ -2631,14 +2764,67 @@
             btnText.classList.add('hidden');
             loader.classList.remove('hidden');
 
+            const progressBox = document.getElementById('route-progress-box');
+            const progressMsg = document.getElementById('route-progress-msg');
+            const progressPct = document.getElementById('route-progress-pct');
+            const progressFill = document.getElementById('route-progress-fill');
+            let pctActual = 1;
+            let timerProgreso = null;
+
+            const actualizarBarraProgreso = (pct) => {
+                const entero = Math.max(1, Math.min(100, Math.round(pct)));
+                if (progressPct) progressPct.textContent = `${entero}%`;
+                if (progressFill) progressFill.style.width = `${entero}%`;
+                if (progressMsg) {
+                    if (entero < 25) progressMsg.textContent = 'Ubicando origen y destino...';
+                    else if (entero < 55) progressMsg.textContent = 'Consultando red vial argentina...';
+                    else if (entero < 80) progressMsg.textContent = 'Buscando la mejor ruta...';
+                    else if (entero < 100) progressMsg.textContent = 'Calculando kilómetros, tiempos y gasoil...';
+                    else progressMsg.textContent = '¡Ruta óptima encontrada!';
+                }
+            };
+
+            if (progressBox) {
+                progressBox.classList.remove('hidden');
+                actualizarBarraProgreso(1);
+                if (typeof setInterval === 'function') {
+                    timerProgreso = setInterval(() => {
+                        const paso = pctActual < 45 ? 2.4 : (pctActual < 75 ? 1.1 : (pctActual < 92 ? 0.45 : 0.12));
+                        pctActual = Math.min(96, pctActual + paso);
+                        actualizarBarraProgreso(pctActual);
+                    }, 50);
+                }
+            }
+
             try {
                 const dataRuta = await resolverRuta(origen, destino, camionId);
+
+                if (timerProgreso && typeof clearInterval === 'function') {
+                    clearInterval(timerProgreso);
+                    timerProgreso = null;
+                }
+                actualizarBarraProgreso(100);
+                if (progressBox) {
+                    setTimeout(() => progressBox.classList.add('hidden'), 650);
+                }
 
                 const resPanel = document.getElementById('resultado-ruta');
                 if (resPanel) {
                     document.getElementById('res-distancia').textContent = formatoDistancia(dataRuta.distancia);
                     document.getElementById('res-tiempo').textContent = formatoTiempo(dataRuta.tiempo);
-                    document.getElementById('res-fuel').textContent = formatoFuel(dataRuta.distancia, pesoCarga, camionId) || '--';
+                    const fuelStr = formatoFuel(dataRuta.distancia, pesoCarga, camionId);
+                    const costoStr = calcularCostoFuel(dataRuta.distancia, pesoCarga, camionId);
+                    document.getElementById('res-fuel').textContent = fuelStr ? (costoStr ? `${fuelStr} (${costoStr})` : fuelStr) : '--';
+                    const advEl = document.getElementById('res-advertencias');
+                    if (advEl) {
+                        if (dataRuta.esAproximada) {
+                            advEl.textContent = 'Sin respuesta del servidor vial — mostrando traza aproximada.';
+                            advEl.classList.remove('hidden');
+                        } else {
+                            advEl.textContent = '';
+                            advEl.classList.add('hidden');
+                        }
+                    }
                     resPanel.classList.remove('hidden');
                 }
 
@@ -2654,27 +2840,65 @@
                     actualizarMapa(mapaInline, marcadoresInline, polylinesInline, false, viajeTemporal);
                 }
 
-                if (idEnvioEditando === null) {
-                    rutaPendiente = {
-                        origen, destino, producto, pesoCarga, estado, camionId,
+                if (idEnvioEditando !== null) {
+                    const idx = envios.findIndex(x => x.id === idEnvioEditando);
+                    if (idx !== -1) {
+                        const actualizado = {
+                            ...envios[idx],
+                            origen, destino, producto, pesoCarga, estado, camionId, cliente, remito,
+                            ...dataRuta
+                        };
+                        if (actualizado.coordsRuta) {
+                            actualizado.coordsRuta = comprimirCoords(actualizado.coordsRuta);
+                        }
+                        envios[idx] = actualizado;
+                    }
+                    idEnvioEditando = null;
+                    rutaPendiente = null;
+                    document.getElementById('form-envio')?.reset();
+                    asegurarRemitoEnFormulario();
+                    document.getElementById('form-titulo').textContent = 'Nueva Ruta de Transporte';
+                    document.getElementById('btn-submit-texto').textContent = 'Calcular Ruta y Emitir';
+                    document.getElementById('btn-cancelar-edicion')?.classList.add('hidden');
+                    showToast('Despacho actualizado con exito.', 'success');
+                } else {
+                    const nuevo = {
+                        id: contadorId++,
+                        origen, destino, producto, pesoCarga, estado, camionId, cliente, remito,
                         ...dataRuta,
                         fecha: new Date().toISOString()
                     };
-                    abrirModalViaje(null);
-                } else {
-                    const idx = envios.findIndex(x => x.id === idEnvioEditando);
-                    if (idx !== -1) {
-                        rutaPendiente = {
-                            ...envios[idx],
-                            origen, destino, producto, pesoCarga, estado, camionId,
-                            ...dataRuta,
-                            esEdicion: true
-                        };
-                        abrirModalViaje(rutaPendiente);
+                    if (nuevo.coordsRuta) {
+                        nuevo.coordsRuta = comprimirCoords(nuevo.coordsRuta);
                     }
+                    envios.push(nuevo);
+                    if (filtroEstado !== 'todos' && filtroEstado !== nuevo.estado) {
+                        filtroEstado = 'todos';
+                        document.querySelectorAll('.filter-btn').forEach(b => {
+                            b.classList.toggle('active', b.dataset.estado === 'todos');
+                        });
+                    }
+                    if (filtroBuscar) {
+                        filtroBuscar = '';
+                        const busInput = document.getElementById('filtro-buscar');
+                        if (busInput) busInput.value = '';
+                    }
+                    limpiarBorradorRuta(false);
+                    document.getElementById('form-envio')?.reset();
+                    asegurarRemitoEnFormulario();
+                    rutaPendiente = null;
+                    showToast('Ruta calculada y remito emitido con exito.', 'success');
                 }
 
+                guardar();
+                render();
+
             } catch (err) {
+                if (timerProgreso && typeof clearInterval === 'function') {
+                    clearInterval(timerProgreso);
+                    timerProgreso = null;
+                }
+                if (progressBox) progressBox.classList.add('hidden');
                 showToast(err.message || 'Error al calcular la ruta.', 'error');
             } finally {
                 btn.disabled = false;
@@ -2890,7 +3114,10 @@
             const id = document.getElementById('cam-id').value;
             const nombre = document.getElementById('cam-nombre').value.trim();
             const patente = document.getElementById('cam-patente').value.trim().toUpperCase();
-            const getN = fid => parseFloat(document.getElementById(fid)?.value) || 0;
+            const getRawN = fid => {
+                const raw = (document.getElementById(fid)?.value || '').trim();
+                return raw === '' ? null : Number(raw);
+            };
             const camioneroId = parseInt(document.getElementById('cam-camionero-select')?.value) || null;
             const camioneroNombre = camioneroId ? (camioneros.find(c => c.id === camioneroId)?.nombre || '') : '';
 
@@ -2900,33 +3127,75 @@
                 return;
             }
 
+            const camposCam = [
+                ['cam-peso', 28, 'peso'],
+                ['cam-alto', 4.1, 'alto'],
+                ['cam-largo', 18.5, 'largo'],
+                ['cam-ancho', 2.6, 'ancho'],
+                ['cam-cons-vacio', 24, 'consumo vacio'],
+                ['cam-cons-cargado', 36, 'consumo cargado']
+            ];
+            const numsCam = {};
+            for (const [fid, defVal, label] of camposCam) {
+                const val = getRawN(fid);
+                if (val !== null && (!Number.isFinite(val) || val <= 0)) {
+                    showToast(`El campo ${label} debe ser mayor a 0.`, 'error');
+                    document.getElementById(fid)?.focus();
+                    return;
+                }
+                numsCam[fid] = val === null ? defVal : val;
+            }
+
             const datos = {
                 nombre,
                 patente,
                 camionero: camioneroNombre,
                 camioneroId,
-                peso: getN('cam-peso') || 28,
-                alto: getN('cam-alto') || 4.1,
-                largo: getN('cam-largo') || 18.5,
-                ancho: getN('cam-ancho') || 2.6,
-                consumoVacio: getN('cam-cons-vacio') || 24,
-                consumoLleno: getN('cam-cons-cargado') || 36,
+                peso: numsCam['cam-peso'],
+                alto: numsCam['cam-alto'],
+                largo: numsCam['cam-largo'],
+                ancho: numsCam['cam-ancho'],
+                consumoVacio: numsCam['cam-cons-vacio'],
+                consumoLleno: numsCam['cam-cons-cargado'],
                 foto: fotoTempCamion || null
             };
 
+            let targetCamId;
             if (id) {
-                const idx = camiones.findIndex(c => c.id === parseInt(id));
+                targetCamId = parseInt(id);
+                const idx = camiones.findIndex(c => c.id === targetCamId);
                 if (idx !== -1) camiones[idx] = { ...camiones[idx], ...datos };
                 showToast('Camion actualizado.', 'success');
             } else {
-                camiones.push({ id: contadorCamiones++, ...datos });
+                targetCamId = contadorCamiones++;
+                camiones.push({ id: targetCamId, ...datos });
                 showToast('Camion incorporado a la flota.', 'success');
             }
+
+            // Sincronizar vínculo bidireccional Camión <-> Chofer
+            if (camioneroId !== null) {
+                camiones.forEach(c => {
+                    if (c.id !== targetCamId && c.camioneroId === camioneroId) {
+                        c.camioneroId = null;
+                        c.camionero = '';
+                    }
+                });
+            }
+            camioneros.forEach(cnr => {
+                if (cnr.id === camioneroId) {
+                    cnr.camionAsignadoId = targetCamId;
+                } else if (cnr.camionAsignadoId === targetCamId) {
+                    cnr.camionAsignadoId = null;
+                }
+            });
 
             cerrarModalCamion();
             guardar();
             renderListaCamiones();
+            renderListaCamioneros();
             renderSelectCamiones();
+            renderSelectCamioneros();
+            renderListaViajes();
             actualizarKPIs();
         });
 
@@ -2975,18 +3244,44 @@
             };
 
             const idStr = document.getElementById('cnr-id').value;
+            let targetCnrId;
             if (idStr) {
-                const idx = camioneros.findIndex(c => c.id === parseInt(idStr));
+                targetCnrId = parseInt(idStr);
+                const idx = camioneros.findIndex(c => c.id === targetCnrId);
                 if (idx !== -1) camioneros[idx] = { ...camioneros[idx], ...datos };
                 showToast('Ficha de chofer actualizada.', 'success');
             } else {
-                camioneros.push({ id: contadorCamioneros++, historial: [], ...datos });
+                targetCnrId = contadorCamioneros++;
+                camioneros.push({ id: targetCnrId, historial: [], ...datos });
                 showToast('Chofer registrado.', 'success');
             }
+
+            // Sincronizar vínculo bidireccional Chofer <-> Camión y propagar nombre
+            const camAsigId = datos.camionAsignadoId;
+            if (camAsigId !== null) {
+                camioneros.forEach(cnr => {
+                    if (cnr.id !== targetCnrId && cnr.camionAsignadoId === camAsigId) {
+                        cnr.camionAsignadoId = null;
+                    }
+                });
+            }
+            camiones.forEach(cam => {
+                if (cam.id === camAsigId) {
+                    cam.camioneroId = targetCnrId;
+                    cam.camionero = nombre;
+                } else if (cam.camioneroId === targetCnrId) {
+                    cam.camioneroId = null;
+                    cam.camionero = '';
+                }
+            });
 
             cerrarModalCamionero();
             guardar();
             renderListaCamioneros();
+            renderListaCamiones();
+            renderSelectCamioneros();
+            renderSelectCamiones();
+            renderListaViajes();
         });
 
         document.getElementById('btn-cam-foto')?.addEventListener('click', () => {
@@ -3020,7 +3315,8 @@
         document.getElementById('btn-cancelar-config')?.addEventListener('click', () => cerrarModalConfig());
         document.getElementById('btn-cfg-limpiar-cache')?.addEventListener('click', () => {
             try {
-                localStorage.removeItem('termate_geo_cache');
+                cacheGeo = {};
+                localStorage.removeItem(KEY_GEO_CACHE);
                 showToast('Caché geográfica limpiada.', 'success');
             } catch {
                 showToast('No se pudo limpiar la caché.', 'error');
@@ -3030,14 +3326,13 @@
             e.preventDefault();
             const empresa = document.getElementById('cfg-empresa')?.value.trim() || 'TerMate';
             const precioGasoil = parseFloat(document.getElementById('cfg-gasoil')?.value) || 1200;
-            const mapaDefault = document.getElementById('cfg-mapa')?.value || 'streets';
+            const mapaDefault = document.getElementById('cfg-mapa')?.value === 'satellite' ? 'satellite' : 'streets';
             try {
                 localStorage.setItem('termate_config', JSON.stringify({ empresa, precioGasoil, mapaDefault }));
             } catch { /* noop */ }
-            const brandTitle = document.querySelector('.sidebar-brand-text, .sidebar-brand span');
-            if (brandTitle) brandTitle.textContent = empresa;
-            if (typeof mapFull !== 'undefined' && mapFull) cambiarCapaMapa(mapFull, mapaDefault);
-            if (typeof mapInline !== 'undefined' && mapInline) cambiarCapaMapa(mapInline, mapaDefault);
+            aplicarConfiguracion();
+            if (mapaFull) cambiarCapaMapa(mapaFull, mapaDefault);
+            if (mapaInline) cambiarCapaMapa(mapaInline, mapaDefault);
             cerrarModalConfig();
             showToast('Configuración guardada.', 'success');
         });
@@ -3187,84 +3482,6 @@
             renderListaCamioneros();
             cerrarModalComportamiento();
             showToast('Evaluacion guardada.', 'success');
-        });
-
-        // Modal Viaje
-        document.getElementById('btn-cerrar-viaje')?.addEventListener('click', () => cerrarModalViaje());
-        document.getElementById('btn-cancelar-viaje')?.addEventListener('click', () => cerrarModalViaje());
-
-        document.getElementById('form-viaje')?.addEventListener('submit', e => {
-            e.preventDefault();
-            const cliente = document.getElementById('vj-cliente').value.trim();
-            const remito = document.getElementById('vj-remito').value.trim();
-            const camionId = parseInt(document.getElementById('vj-select-camion')?.value) || null;
-
-            limpiarErroresFormulario('form-viaje');
-            let primerInvalidoVj = null;
-
-            if (!camionId) {
-                mostrarErrorCampo('vj-select-camion', 'err-vj-select-camion', 'Selecciona un camion para emitir el despacho.');
-                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-select-camion');
-            }
-            if (!cliente) {
-                mostrarErrorCampo('vj-cliente', 'err-vj-cliente', 'Ingresa la razon social o cliente receptor.');
-                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-cliente');
-            }
-            if (!remito) {
-                mostrarErrorCampo('vj-remito', 'err-vj-remito', 'Ingresa el numero de remito oficial.');
-                if (!primerInvalidoVj) primerInvalidoVj = document.getElementById('vj-remito');
-            }
-
-            if (primerInvalidoVj) {
-                primerInvalidoVj.focus();
-                return;
-            }
-
-            const datosExtra = { cliente, remito, camionId };
-
-            if (idEnvioEditando !== null) {
-                const idx = envios.findIndex(x => x.id === idEnvioEditando);
-                if (idx !== -1) {
-                    const datosActualizados = rutaPendiente
-                        ? { ...rutaPendiente, ...datosExtra }
-                        : { ...envios[idx], ...datosExtra };
-                    delete datosActualizados.esEdicion;
-                    if (datosActualizados.coordsRuta) {
-                        datosActualizados.coordsRuta = comprimirCoords(datosActualizados.coordsRuta);
-                    }
-                    envios[idx] = datosActualizados;
-                }
-                showToast('Despacho actualizado.', 'success');
-                cancelarEdicion();
-            } else if (rutaPendiente) {
-                const nuevo = { id: contadorId++, ...rutaPendiente, ...datosExtra };
-                delete nuevo.esEdicion;
-                if (nuevo.coordsRuta) {
-                    nuevo.coordsRuta = comprimirCoords(nuevo.coordsRuta);
-                }
-                envios.push(nuevo);
-                // Asegurar que el nuevo viaje sea visible en Mis Viajes reseteando filtros restrictivos
-                if (filtroEstado !== 'todos' && filtroEstado !== nuevo.estado) {
-                    filtroEstado = 'todos';
-                    document.querySelectorAll('.filter-btn').forEach(b => {
-                        b.classList.toggle('active', b.dataset.estado === 'todos');
-                    });
-                }
-                if (filtroBuscar) {
-                    filtroBuscar = '';
-                    const busInput = document.getElementById('filtro-buscar');
-                    if (busInput) busInput.value = '';
-                }
-                showToast('Remito y ruta emitidos con exito.', 'success');
-                limpiarBorradorRuta(false);
-                document.getElementById('form-envio')?.reset();
-                document.getElementById('resultado-ruta')?.classList.add('hidden');
-                rutaPendiente = null;
-            }
-
-            cerrarModalViaje();
-            guardar();
-            render();
         });
 
         // Lista de Viajes y Detalles
@@ -3468,10 +3685,10 @@
                     if (overlay.id === 'modal-confirm') cerrarModalConfirm();
                     else if (overlay.id === 'modal-camion') cerrarModalCamion();
                     else if (overlay.id === 'modal-detalle') cerrarDetalle();
-                    else if (overlay.id === 'modal-viaje') cerrarModalViaje();
                     else if (overlay.id === 'modal-camionero') cerrarModalCamionero();
                     else if (overlay.id === 'modal-comportamiento') cerrarModalComportamiento();
                     else if (overlay.id === 'modal-perfil-camionero') cerrarPerfilCamionero();
+                    else if (overlay.id === 'modal-config') cerrarModalConfig();
                 }
             });
         });
@@ -3484,12 +3701,12 @@
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (activeModal.id === 'modal-confirm') cerrarModalConfirm();
-                else if (activeModal.id === 'modal-viaje') cerrarModalViaje();
                 else if (activeModal.id === 'modal-detalle') cerrarDetalle();
                 else if (activeModal.id === 'modal-camion') cerrarModalCamion();
                 else if (activeModal.id === 'modal-camionero') cerrarModalCamionero();
                 else if (activeModal.id === 'modal-comportamiento') cerrarModalComportamiento();
                 else if (activeModal.id === 'modal-perfil-camionero') cerrarPerfilCamionero();
+                else if (activeModal.id === 'modal-config') cerrarModalConfig();
                 return;
             }
 
@@ -3733,6 +3950,19 @@
         return `${litros} L`;
     }
 
+    function calcularCostoFuel(km, pesoCarga = 0, camionId = null) {
+        const fuelStr = formatoFuel(km, pesoCarga, camionId);
+        if (!fuelStr) return null;
+        const litros = parseInt(fuelStr, 10) || 0;
+        let precio = 1200;
+        try {
+            const cfg = JSON.parse(localStorage.getItem('termate_config') || '{}') || {};
+            if (cfg.precioGasoil > 0) precio = Number(cfg.precioGasoil);
+        } catch { /* noop */ }
+        const total = Math.round(litros * precio);
+        return `$ ${total.toLocaleString('es-AR')}`;
+    }
+
     function showToast(msg, tipo = 'info', opts = {}) {
         const cont = document.getElementById('toast-container');
         if (!cont) return;
@@ -3770,6 +4000,7 @@
     // ═══════════════════════════════════════════════════════════
     function init() {
         cargarDatos();
+        aplicarConfiguracion();
         actualizarConexion();
         initMapas();
         setupAutocompletado('origen', 'sugerencias-origen');
@@ -3779,6 +4010,7 @@
         renderListaCamioneros();
         render();
         restaurarBorradorRuta();
+        asegurarRemitoEnFormulario();
 
         window.addEventListener('resize', () => {
             if (mapaFull) mapaFull.invalidateSize();

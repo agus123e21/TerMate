@@ -3356,3 +3356,106 @@ body {
     background: rgba(37, 99, 235, 0.14);
     color: #f8fafc;
 }
+
+/* Resumen del viaje dentro del modal de emisión */
+.viaje-modal-resumen {
+    background: rgba(37, 99, 235, 0.1);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+}
+
+.viaje-modal-ruta {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 3px;
+}
+
+.viaje-modal-carga {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.viaje-modal-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.viaje-modal-metrics span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #bfdbfe;
+    background: rgba(14, 21, 38, 0.75);
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+/* Ajuste visual independiente de .sidebar-config-btn y badge Cancelado */
+.sidebar-config-btn {
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.vc2-estado-badge.cancelado {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Barra de progreso continua para cálculo de ruta */
+.route-progress-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(14, 21, 38, 0.85);
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    box-shadow: 0 6px 20px rgba(2, 6, 23, 0.45);
+}
+
+.route-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.route-progress-msg {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.route-progress-pct {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #60a5fa;
+    font-variant-numeric: tabular-nums;
+}
+
+.route-progress-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    overflow: hidden;
+}
+
+.route-progress-fill {
+    height: 100%;
+    width: 1%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 0%, #38bdf8 55%, #60a5fa 100%);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+    transition: width 0.08s linear;
+}

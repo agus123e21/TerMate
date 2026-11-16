@@ -79,7 +79,7 @@
     </nav>
 
     <div class="sidebar-footer">
-        <button type="button" id="btn-sidebar-config" class="sidebar-btn sidebar-config-btn" title="Configuración">
+        <button type="button" id="btn-sidebar-config" class="sidebar-config-btn" title="Configuración">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -219,6 +219,7 @@
                             <label class="field-label" for="peso-carga">Peso Carga (tn)</label>
                             <input type="number" id="peso-carga" class="field-input"
                                 placeholder="0.0" min="0" step="0.1" inputmode="decimal">
+                            <div id="err-peso-carga" class="field-error hidden" role="alert"></div>
                         </div>
                         <div class="field-block">
                             <label class="field-label" for="estado">Estado Inicial</label>
@@ -238,6 +239,21 @@
                         <div id="err-select-camion" class="field-error hidden" role="alert"></div>
                     </div>
 
+                    <div class="fields-row">
+                        <div class="field-block">
+                            <label class="field-label" for="cliente">Razon Social / Cliente</label>
+                            <input type="text" id="cliente" class="field-input"
+                                placeholder="Nombre de la empresa o receptor" autocomplete="off">
+                            <div id="err-cliente" class="field-error hidden" role="alert"></div>
+                        </div>
+                        <div class="field-block">
+                            <label class="field-label" for="remito">Numero de Remito Oficial</label>
+                            <input type="text" id="remito" class="field-input"
+                                placeholder="Auto (Ej: R-0001-00045120)" autocomplete="off">
+                            <div id="err-remito" class="field-error hidden" role="alert"></div>
+                        </div>
+                    </div>
+
                     <div class="form-actions-row">
                         <button type="submit" id="btn-submit-envio" class="btn-primary">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
@@ -248,6 +264,16 @@
                         <button type="button" id="btn-cancelar-edicion" class="btn-ghost hidden">
                             Cancelar Edicion
                         </button>
+                    </div>
+
+                    <div id="route-progress-box" class="route-progress-box hidden" role="status" aria-live="polite">
+                        <div class="route-progress-header">
+                            <span id="route-progress-msg" class="route-progress-msg">Buscando la mejor ruta...</span>
+                            <span id="route-progress-pct" class="route-progress-pct">1%</span>
+                        </div>
+                        <div class="route-progress-track" aria-hidden="true">
+                            <div id="route-progress-fill" class="route-progress-fill" style="width:1%"></div>
+                        </div>
                     </div>
                 </form>
 
@@ -820,49 +846,6 @@
     </div>
 </div>
 
-<!-- MODAL: ASIGNACION DE CLIENTE Y REMITO -->
-<div id="modal-viaje" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-viaje-titulo">
-    <div class="modal-panel">
-        <div class="modal-header">
-            <h2 id="modal-viaje-titulo" class="modal-title">Emision de Despacho</h2>
-            <button id="btn-cerrar-viaje" class="modal-close" aria-label="Cerrar">&times;</button>
-        </div>
-
-        <form id="form-viaje" novalidate class="modal-form">
-            <div class="field-block">
-                <label class="field-label" for="vj-select-camion">Camion de Asignacion</label>
-                <select id="vj-select-camion" class="field-input" required>
-                    <option value="">-- Seleccionar camion --</option>
-                </select>
-                <div id="err-vj-select-camion" class="field-error hidden" role="alert"></div>
-            </div>
-
-            <div class="form-divider"></div>
-
-            <div class="fields-row">
-                <div class="field-block">
-                    <label class="field-label" for="vj-cliente">Razon Social / Cliente</label>
-                    <input type="text" id="vj-cliente" class="field-input" placeholder="Nombre de la empresa o receptor" required autocomplete="off">
-                    <div id="err-vj-cliente" class="field-error hidden" role="alert"></div>
-                </div>
-                <div class="field-block">
-                    <label class="field-label" for="vj-remito">Numero de Remito Oficial</label>
-                    <input type="text" id="vj-remito" class="field-input" placeholder="Ej: R-0001-00045120" required autocomplete="off">
-                    <div id="err-vj-remito" class="field-error hidden" role="alert"></div>
-                </div>
-            </div>
-
-            <div class="modal-actions">
-                <button type="button" id="btn-cancelar-viaje" class="btn-ghost">Cancelar</button>
-                <button type="submit" id="btn-guardar-viaje" class="btn-primary">
-                    <span id="vj-btn-texto">Confirmar y Emitir</span>
-                    <span id="vj-btn-loader" class="spinner hidden" aria-hidden="true"></span>
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <!-- MODAL: CONFIRMACION UNIVERSAL (BORRADO / RESTORE BACKUP) -->
 <div id="modal-confirm" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-titulo" aria-describedby="modal-confirm-desc">
     <div class="modal-panel modal-panel--sm">
@@ -879,11 +862,6 @@
     </div>
 </div>
 
-<!-- TOASTS DE NOTIFICACION -->
-<div id="toast-container" role="status" aria-live="polite"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/app.js?v=4.3.0"></script>
 <!-- MODAL: CONFIGURACION -->
 <div id="modal-config" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-config-titulo">
     <div class="modal-panel">
@@ -921,6 +899,12 @@
         </form>
     </div>
 </div>
+
+<!-- TOASTS DE NOTIFICACION -->
+<div id="toast-container" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/app.js?v=4.3.0"></script>
 
 </body>
 </html>

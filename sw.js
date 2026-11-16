@@ -1,7 +1,7 @@
 // Service Worker — TerMate
 // Estrategia offline-first: sirve desde cache, actualiza en fondo
 
-const CACHE_NAME = 'termate-v5';
+const CACHE_NAME = 'termate-v6';
 const TILE_CACHE = 'termate-tiles-v2';
 const API_CACHE = 'termate-api-v1';
 
@@ -12,6 +12,8 @@ const CORE_ASSETS = [
   './css/styles.css',
   './js/app.js',
   './data/argentina-provinces.geojson',
+  './assets/img/camiones/scania.webp',
+  './assets/img/camiones/mercedes-actros-2645.jpg',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
@@ -79,7 +81,9 @@ self.addEventListener('fetch', event => {
     url.hostname.includes('apis.datos.gob.ar') ||
     url.hostname.includes('api.openrouteservice.org') ||
     url.hostname.includes('nominatim.openstreetmap.org') ||
+    url.hostname.includes('photon.komoot.io') ||
     url.hostname.includes('router.project-osrm.org') ||
+    url.hostname.includes('routing.openstreetmap.de') ||
     url.hostname.includes('serpapi.com')
   ) {
     event.respondWith(networkThenCache(event.request, API_CACHE));

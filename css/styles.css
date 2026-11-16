@@ -2856,3 +2856,307 @@ textarea:focus-visible,
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ==========================================================================
+   MEJORAS UI: TARJETAS Y MODALES DE CHOFERES Y CAMIONES
+   ========================================================================== */
+.camionero-avatar-wrap {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+.camionero-avatar-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.camionero-avatar-img svg,
+.camionero-avatar-img img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.camionero-avatar-initials {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    background: #0e1526;
+    color: #93c5fd;
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 999px;
+    line-height: 1.2;
+}
+
+.camion-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-right: 26px;
+}
+
+.camion-thumb {
+    width: 72px;
+    height: 48px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.camion-thumb svg,
+.camion-thumb img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.camion-card-title-wrap {
+    min-width: 0;
+    flex: 1;
+}
+
+.camion-card-nombre {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--c-text, #f8fafc);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 5px;
+}
+
+.camion-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.patente-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(37, 99, 235, 0.16);
+    border: 1px solid rgba(96, 165, 250, 0.38);
+    color: #93c5fd;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 5px;
+    text-transform: uppercase;
+}
+
+.camion-driver-chip {
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.camion-driver-chip--empty {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.camion-specs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.camion-spec-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(6, 9, 17, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 8px;
+    padding: 6px 9px;
+}
+
+.camion-spec-label {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.camion-spec-val {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.modal-hero {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(14, 21, 38, 0.85));
+    border: 1px solid rgba(96, 165, 250, 0.24);
+}
+
+.modal-hero-thumb {
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.modal-hero-thumb--truck {
+    width: 84px;
+    height: 56px;
+}
+
+.modal-hero-thumb--driver {
+    width: 56px;
+    height: 56px;
+}
+
+.modal-hero-thumb svg,
+.modal-hero-thumb img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.modal-hero-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.modal-hero-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.modal-hero-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-hero-meta {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.fleet-add-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 148px;
+    width: 100%;
+    padding: 20px 16px;
+    border-radius: 14px;
+    border: 2px dashed rgba(96, 165, 250, 0.42);
+    background: rgba(14, 21, 38, 0.45);
+    color: #93c5fd;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.fleet-add-card:hover,
+.fleet-add-card:focus-visible {
+    border-color: #60a5fa;
+    background: rgba(37, 99, 235, 0.12);
+    transform: translateY(-2px);
+    outline: none;
+}
+
+.fleet-add-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 500;
+    line-height: 1;
+    background: rgba(37, 99, 235, 0.2);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    color: #bfdbfe;
+}
+
+.fleet-add-card-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.fleet-add-card-sub {
+    font-size: 0.76rem;
+    color: #94a3b8;
+}
+
+.modal-hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.btn-mini-foto {
+    background: rgba(37, 99, 235, 0.22);
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    color: #bfdbfe;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-mini-foto:hover {
+    background: rgba(37, 99, 235, 0.35);
+    border-color: #60a5fa;
+}
+
+.btn-mini-foto--ghost {
+    background: transparent;
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #94a3b8;
+}
+
+.btn-mini-foto--ghost:hover {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fca5a5;
+}

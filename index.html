@@ -502,6 +502,21 @@
 
         <form id="form-camion" class="modal-form">
             <input type="hidden" id="cam-id" value="">
+            <div class="modal-hero" id="modal-camion-hero">
+                <div class="modal-hero-thumb modal-hero-thumb--truck" id="modal-camion-thumb" aria-hidden="true"></div>
+                <div class="modal-hero-info">
+                    <div class="modal-hero-title" id="modal-camion-hero-nombre">Nueva Unidad</div>
+                    <div class="modal-hero-sub">
+                        <span class="patente-badge" id="modal-camion-hero-patente">SIN PATENTE</span>
+                        <span class="modal-hero-meta" id="modal-camion-hero-meta">Configuración de flota pesada</span>
+                    </div>
+                    <div class="modal-hero-actions">
+                        <input type="file" id="cam-foto-input" accept="image/*" class="hidden">
+                        <button type="button" id="btn-cam-foto" class="btn-mini-foto">Cambiar foto</button>
+                        <button type="button" id="btn-cam-foto-reset" class="btn-mini-foto btn-mini-foto--ghost hidden">Quitar</button>
+                    </div>
+                </div>
+            </div>
             <div class="fields-row">
                 <div class="field-block">
                     <label class="field-label" for="cam-nombre">Nombre / Identificador</label>
@@ -571,6 +586,20 @@
 
         <form id="form-camionero" class="modal-form">
             <input type="hidden" id="cnr-id" value="">
+            <div class="modal-hero" id="modal-camionero-hero">
+                <div class="modal-hero-thumb modal-hero-thumb--driver" id="modal-camionero-thumb" aria-hidden="true"></div>
+                <div class="modal-hero-info">
+                    <div class="modal-hero-title" id="modal-camionero-hero-nombre">Nuevo Chofer</div>
+                    <div class="modal-hero-sub">
+                        <span class="modal-hero-meta" id="modal-camionero-hero-meta">Legajo de conductor profesional</span>
+                    </div>
+                    <div class="modal-hero-actions">
+                        <input type="file" id="cnr-foto-input" accept="image/*" class="hidden">
+                        <button type="button" id="btn-cnr-foto" class="btn-mini-foto">Cambiar foto</button>
+                        <button type="button" id="btn-cnr-foto-reset" class="btn-mini-foto btn-mini-foto--ghost hidden">Quitar</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="form-section-label">Datos Personales</div>
             <div class="fields-row">

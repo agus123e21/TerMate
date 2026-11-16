@@ -1159,7 +1159,7 @@
     // 7. GESTION DE MAPAS LEAFLET
     // ═══════════════════════════════════════════════════════════
     const TILE_PROVIDERS = {
-        streets: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        streets: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     };
 
@@ -1871,6 +1871,64 @@
         banner.innerHTML = `<div style="display:flex;flex-direction:column;gap:0.25rem;width:100%">${partes.join('')}</div>`;
     }
 
+    let fotoTempCamion = null;
+    let fotoTempCamionero = null;
+
+    function comprimirImagenFile(file, maxW = 320, quality = 0.72) {
+        return new Promise((resolve, reject) => {
+            if (!file || !file.type.startsWith('image/')) {
+                reject(new Error('Archivo no válido'));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxW / (img.width || maxW));
+                    const w = Math.max(1, Math.round(img.width * scale));
+                    const h = Math.max(1, Math.round(img.height * scale));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = () => reject(new Error('No se pudo leer la imagen'));
+                img.src = ev.target.result;
+            };
+            reader.onerror = () => reject(new Error('Error leyendo archivo'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function getFotoGenericaChofer(id = 0, fotoPersonalizada = null) {
+        if (typeof fotoPersonalizada === 'string' && fotoPersonalizada.startsWith('data:image/')) {
+            return `<img src="${fotoPersonalizada}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
+        }
+        const fotos = [
+            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&h=160&q=75',
+            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&h=160&q=75',
+            'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=160&h=160&q=75',
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&h=160&q=75',
+            'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&h=160&q=75'
+        ];
+        const src = fotos[Math.abs(Number(id) || 0) % fotos.length];
+        return `<img src="${src}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'">`;
+    }
+
+    function getFotoGenericaCamion(id = 0, fotoPersonalizada = null) {
+        if (typeof fotoPersonalizada === 'string' && fotoPersonalizada.startsWith('data:image/')) {
+            return `<img src="${fotoPersonalizada}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
+        }
+        const fotos = [
+            'assets/img/camiones/scania.webp',
+            'assets/img/camiones/mercedes-actros-2645.jpg'
+        ];
+        const src = fotos[Math.abs(Number(id) || 0) % fotos.length];
+        return `<img src="${src}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`;
+    }
+
     function renderListaCamioneros() {
         const c = document.getElementById('lista-camioneros');
         if (!c) return;
@@ -1914,7 +1972,10 @@
             return `<div class="camionero-card" data-id="${cnr.id}" tabindex="0">
                 <button type="button" class="camionero-card-delete" data-id="${cnr.id}" aria-label="Eliminar chofer ${nombreEsc}">&times;</button>
                 <div class="camionero-card-header">
-                    <div class="camionero-avatar">${initials}</div>
+                    <div class="camionero-avatar-wrap">
+                        <div class="camionero-avatar-img">${getFotoGenericaChofer(cnr.id, cnr.foto)}</div>
+                        <span class="camionero-avatar-initials">${initials}</span>
+                    </div>
                     <div class="camionero-info">
                         <div class="camionero-nombre">${nombreEsc}</div>
                         <div class="camionero-dni">${dniEsc}</div>
@@ -1931,7 +1992,16 @@
                     <span>${totalRegistros} viajes evaluados</span>
                 </div>
             </div>`;
-        }).join('');
+        }).join('') + `
+            <button type="button" class="fleet-add-card fleet-add-card--chofer" aria-label="Agregar nuevo chofer">
+                <span class="fleet-add-card-icon" aria-hidden="true">+</span>
+                <span class="fleet-add-card-title">Agregar Chofer</span>
+                <span class="fleet-add-card-sub">Registrar nuevo conductor</span>
+            </button>`;
+
+        c.querySelector('.fleet-add-card--chofer')?.addEventListener('click', (e) => {
+            abrirModalCamionero(null, e.currentTarget);
+        });
     }
 
     function renderListaCamiones() {
@@ -1949,22 +2019,46 @@
 
         c.innerHTML = camiones.map(cam => `
             <div class="camion-card" data-id="${cam.id}" tabindex="0">
-                <div class="viaje-ruta">
-                    <span>${escapeHTML(cam.nombre)}</span>
-                    <span style="font-size:0.75rem;color:var(--c-primary-light);font-weight:700">${escapeHTML(cam.patente || 'SIN PATENTE')}</span>
-                </div>
-                ${cam.camionero ? `<div class="viaje-meta"><span>Chofer asignado: <strong>${escapeHTML(cam.camionero)}</strong></span></div>` : ''}
-                <div class="viaje-meta">
-                    <span>Carga max: <strong>${escapeHTML(cam.peso)} tn</strong></span>
-                    <span>Dimensiones: ${escapeHTML(cam.largo)}m x ${escapeHTML(cam.ancho)}m x ${escapeHTML(cam.alto)}m</span>
-                </div>
-                <div class="viaje-meta">
-                    <span>Consumo vacio: ${escapeHTML(cam.consumoVacio)} L/100km</span>
-                    <span>Consumo cargado: ${escapeHTML(cam.consumoLleno)} L/100km</span>
-                </div>
                 <button type="button" class="camionero-card-delete" data-id="${cam.id}" aria-label="Eliminar camion ${escapeHTML(cam.nombre)}">&times;</button>
+                <div class="camion-card-header">
+                    <div class="camion-thumb">${getFotoGenericaCamion(cam.id, cam.foto)}</div>
+                    <div class="camion-card-title-wrap">
+                        <div class="camion-card-nombre">${escapeHTML(cam.nombre)}</div>
+                        <div class="camion-card-badges">
+                            <span class="patente-badge">${escapeHTML(cam.patente || 'SIN PATENTE')}</span>
+                            ${cam.camionero ? `<span class="camion-driver-chip">${escapeHTML(cam.camionero)}</span>` : `<span class="camion-driver-chip camion-driver-chip--empty">Sin chofer</span>`}
+                        </div>
+                    </div>
+                </div>
+                <div class="camion-specs-grid">
+                    <div class="camion-spec-item">
+                        <span class="camion-spec-label">Carga máx.</span>
+                        <span class="camion-spec-val">${escapeHTML(cam.peso)} tn</span>
+                    </div>
+                    <div class="camion-spec-item">
+                        <span class="camion-spec-label">Dimensiones</span>
+                        <span class="camion-spec-val">${escapeHTML(cam.largo)}×${escapeHTML(cam.ancho)}×${escapeHTML(cam.alto)} m</span>
+                    </div>
+                    <div class="camion-spec-item">
+                        <span class="camion-spec-label">Consumo vacío</span>
+                        <span class="camion-spec-val">${escapeHTML(cam.consumoVacio)} L/100</span>
+                    </div>
+                    <div class="camion-spec-item">
+                        <span class="camion-spec-label">Consumo cargado</span>
+                        <span class="camion-spec-val">${escapeHTML(cam.consumoLleno)} L/100</span>
+                    </div>
+                </div>
             </div>
-        `).join('');
+        `).join('') + `
+            <button type="button" class="fleet-add-card fleet-add-card--camion" aria-label="Agregar nuevo camión">
+                <span class="fleet-add-card-icon" aria-hidden="true">+</span>
+                <span class="fleet-add-card-title">Agregar Camión</span>
+                <span class="fleet-add-card-sub">Sumar unidad a la flota</span>
+            </button>`;
+
+        c.querySelector('.fleet-add-card--camion')?.addEventListener('click', (e) => {
+            abrirModalCamion(null, e.currentTarget);
+        });
     }
 
     function renderSelectCamiones() {
@@ -2098,6 +2192,18 @@
         document.getElementById('cam-ancho').value = cam?.ancho || 2.6;
         document.getElementById('cam-cons-vacio').value = cam?.consumoVacio || 24;
         document.getElementById('cam-cons-cargado').value = cam?.consumoLleno || 36;
+        fotoTempCamion = cam?.foto || null;
+        const heroThumb = document.getElementById('modal-camion-thumb');
+        if (heroThumb) heroThumb.innerHTML = getFotoGenericaCamion(cam?.id || 0, fotoTempCamion);
+        document.getElementById('btn-cam-foto-reset')?.classList.toggle('hidden', !fotoTempCamion);
+        const camFotoInput = document.getElementById('cam-foto-input');
+        if (camFotoInput) camFotoInput.value = '';
+        const heroNom = document.getElementById('modal-camion-hero-nombre');
+        if (heroNom) heroNom.textContent = cam?.nombre || 'Nueva Unidad';
+        const heroPat = document.getElementById('modal-camion-hero-patente');
+        if (heroPat) heroPat.textContent = cam?.patente || 'SIN PATENTE';
+        const heroMeta = document.getElementById('modal-camion-hero-meta');
+        if (heroMeta) heroMeta.textContent = cam?.camionero ? `Chofer: ${cam.camionero}` : 'Configuración de flota pesada';
         document.getElementById('modal-camion')?.classList.remove('hidden');
         activarFocoModal('modal-camion', '#cam-nombre', triggerEl);
     }
@@ -2128,6 +2234,16 @@
         }
 
         renderCapsTemp();
+        fotoTempCamionero = cnr?.foto || null;
+        const heroThumb = document.getElementById('modal-camionero-thumb');
+        if (heroThumb) heroThumb.innerHTML = getFotoGenericaChofer(cnr?.id || 0, fotoTempCamionero);
+        document.getElementById('btn-cnr-foto-reset')?.classList.toggle('hidden', !fotoTempCamionero);
+        const cnrFotoInput = document.getElementById('cnr-foto-input');
+        if (cnrFotoInput) cnrFotoInput.value = '';
+        const heroNom = document.getElementById('modal-camionero-hero-nombre');
+        if (heroNom) heroNom.textContent = cnr?.nombre || 'Nuevo Chofer';
+        const heroMeta = document.getElementById('modal-camionero-hero-meta');
+        if (heroMeta) heroMeta.textContent = cnr?.dni ? `DNI ${cnr.dni} · Cat. ${cnr.carnetCat || 'S/D'}` : 'Legajo de conductor profesional';
         document.getElementById('modal-camionero')?.classList.remove('hidden');
         activarFocoModal('modal-camionero', '#cnr-nombre', triggerEl);
     }
@@ -2774,7 +2890,8 @@
                 largo: getN('cam-largo') || 18.5,
                 ancho: getN('cam-ancho') || 2.6,
                 consumoVacio: getN('cam-cons-vacio') || 24,
-                consumoLleno: getN('cam-cons-cargado') || 36
+                consumoLleno: getN('cam-cons-cargado') || 36,
+                foto: fotoTempCamion || null
             };
 
             if (id) {
@@ -2833,7 +2950,8 @@
                 carnetCat: document.getElementById('cnr-carnet-cat').value,
                 carnetVto: document.getElementById('cnr-carnet-vto').value,
                 camionAsignadoId: parseInt(document.getElementById('cnr-camion-asignado').value) || null,
-                capacitaciones: [...capsTemp]
+                capacitaciones: [...capsTemp],
+                foto: fotoTempCamionero || null
             };
 
             const idStr = document.getElementById('cnr-id').value;
@@ -2849,6 +2967,54 @@
             cerrarModalCamionero();
             guardar();
             renderListaCamioneros();
+        });
+
+        document.getElementById('btn-cam-foto')?.addEventListener('click', () => {
+            document.getElementById('cam-foto-input')?.click();
+        });
+        document.getElementById('cam-foto-input')?.addEventListener('change', async e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                fotoTempCamion = await comprimirImagenFile(file, 360, 0.75);
+                const thumb = document.getElementById('modal-camion-thumb');
+                if (thumb) thumb.innerHTML = getFotoGenericaCamion(camionEditandoId || 0, fotoTempCamion);
+                document.getElementById('btn-cam-foto-reset')?.classList.remove('hidden');
+            } catch {
+                showToast('No se pudo procesar la imagen.', 'error');
+            }
+        });
+        document.getElementById('btn-cam-foto-reset')?.addEventListener('click', () => {
+            fotoTempCamion = null;
+            const thumb = document.getElementById('modal-camion-thumb');
+            if (thumb) thumb.innerHTML = getFotoGenericaCamion(camionEditandoId || 0, null);
+            document.getElementById('btn-cam-foto-reset')?.classList.add('hidden');
+            const inp = document.getElementById('cam-foto-input');
+            if (inp) inp.value = '';
+        });
+
+        document.getElementById('btn-cnr-foto')?.addEventListener('click', () => {
+            document.getElementById('cnr-foto-input')?.click();
+        });
+        document.getElementById('cnr-foto-input')?.addEventListener('change', async e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                fotoTempCamionero = await comprimirImagenFile(file, 260, 0.75);
+                const thumb = document.getElementById('modal-camionero-thumb');
+                if (thumb) thumb.innerHTML = getFotoGenericaChofer(camioneroEditandoId || 0, fotoTempCamionero);
+                document.getElementById('btn-cnr-foto-reset')?.classList.remove('hidden');
+            } catch {
+                showToast('No se pudo procesar la imagen.', 'error');
+            }
+        });
+        document.getElementById('btn-cnr-foto-reset')?.addEventListener('click', () => {
+            fotoTempCamionero = null;
+            const thumb = document.getElementById('modal-camionero-thumb');
+            if (thumb) thumb.innerHTML = getFotoGenericaChofer(camioneroEditandoId || 0, null);
+            document.getElementById('btn-cnr-foto-reset')?.classList.add('hidden');
+            const inp = document.getElementById('cnr-foto-input');
+            if (inp) inp.value = '';
         });
 
         document.getElementById('lista-camioneros')?.addEventListener('click', e => {

@@ -79,6 +79,13 @@
     </nav>
 
     <div class="sidebar-footer">
+        <button type="button" id="btn-sidebar-config" class="sidebar-btn sidebar-config-btn" title="Configuración">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Configuración</span>
+        </button>
         <div id="indicador-conexion-sidebar" class="conexion-pill online">
             <span class="conexion-dot"></span>
             <span class="conexion-texto">Online</span>
@@ -877,5 +884,43 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/app.js?v=4.3.0"></script>
+<!-- MODAL: CONFIGURACION -->
+<div id="modal-config" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-config-titulo">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2 id="modal-config-titulo" class="modal-title">Configuración</h2>
+            <button id="btn-cerrar-config" class="modal-close" aria-label="Cerrar">&times;</button>
+        </div>
+        <form id="form-config" class="modal-form">
+            <div class="form-section-label">Identidad de la Flota</div>
+            <div class="field-block">
+                <label class="field-label" for="cfg-empresa">Nombre de Empresa / Flota</label>
+                <input type="text" id="cfg-empresa" class="field-input" placeholder="Ej: TerMate Logística" autocomplete="off">
+            </div>
+            <div class="fields-row">
+                <div class="field-block">
+                    <label class="field-label" for="cfg-gasoil">Precio Gasoil ($ / L)</label>
+                    <input type="number" id="cfg-gasoil" class="field-input" placeholder="1200" min="0" step="10" inputmode="decimal">
+                </div>
+                <div class="field-block">
+                    <label class="field-label" for="cfg-mapa">Mapa por Defecto</label>
+                    <select id="cfg-mapa" class="field-input">
+                        <option value="streets">Calles</option>
+                        <option value="satellite">Satelital</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-section-label">Datos y Mantenimiento</div>
+            <div class="fields-row">
+                <button type="button" id="btn-cfg-limpiar-cache" class="btn-ghost">Limpiar caché geográfica</button>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="btn-cancelar-config" class="btn-ghost">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 </body>
 </html>

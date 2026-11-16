@@ -2248,6 +2248,26 @@
         activarFocoModal('modal-camionero', '#cnr-nombre', triggerEl);
     }
 
+    function abrirModalConfig(triggerEl = null) {
+        let cfg = {};
+        try {
+            cfg = JSON.parse(localStorage.getItem('termate_config') || '{}') || {};
+        } catch { cfg = {}; }
+        const empEl = document.getElementById('cfg-empresa');
+        const gasEl = document.getElementById('cfg-gasoil');
+        const mapEl = document.getElementById('cfg-mapa');
+        if (empEl) empEl.value = cfg.empresa || 'TerMate';
+        if (gasEl) gasEl.value = cfg.precioGasoil || 1200;
+        if (mapEl) mapEl.value = cfg.mapaDefault || 'streets';
+        document.getElementById('modal-config')?.classList.remove('hidden');
+        activarFocoModal('modal-config', '#cfg-empresa', triggerEl);
+    }
+
+    function cerrarModalConfig(omitirRestauracion = false) {
+        document.getElementById('modal-config')?.classList.add('hidden');
+        return restaurarFocoModal('modal-config', omitirRestauracion);
+    }
+
     function cerrarModalCamionero(omitirRestauracion = false) {
         document.getElementById('modal-camionero')?.classList.add('hidden');
         camioneroEditandoId = null;
@@ -2993,7 +3013,39 @@
             if (inp) inp.value = '';
         });
 
+        document.getElementById('btn-sidebar-config')?.addEventListener('click', e => {
+            abrirModalConfig(e.currentTarget);
+        });
+        document.getElementById('btn-cerrar-config')?.addEventListener('click', () => cerrarModalConfig());
+        document.getElementById('btn-cancelar-config')?.addEventListener('click', () => cerrarModalConfig());
+        document.getElementById('btn-cfg-limpiar-cache')?.addEventListener('click', () => {
+            try {
+                localStorage.removeItem('termate_geo_cache');
+                showToast('Caché geográfica limpiada.', 'success');
+            } catch {
+                showToast('No se pudo limpiar la caché.', 'error');
+            }
+        });
+        document.getElementById('form-config')?.addEventListener('submit', e => {
+            e.preventDefault();
+            const empresa = document.getElementById('cfg-empresa')?.value.trim() || 'TerMate';
+            const precioGasoil = parseFloat(document.getElementById('cfg-gasoil')?.value) || 1200;
+            const mapaDefault = document.getElementById('cfg-mapa')?.value || 'streets';
+            try {
+                localStorage.setItem('termate_config', JSON.stringify({ empresa, precioGasoil, mapaDefault }));
+            } catch { /* noop */ }
+            const brandTitle = document.querySelector('.sidebar-brand-text, .sidebar-brand span');
+            if (brandTitle) brandTitle.textContent = empresa;
+            if (typeof mapFull !== 'undefined' && mapFull) cambiarCapaMapa(mapFull, mapaDefault);
+            if (typeof mapInline !== 'undefined' && mapInline) cambiarCapaMapa(mapInline, mapaDefault);
+            cerrarModalConfig();
+            showToast('Configuración guardada.', 'success');
+        });
+
         document.getElementById('btn-cnr-foto')?.addEventListener('click', () => {
+            document.getElementById('cnr-foto-input')?.click();
+        });
+        document.getElementById('modal-camionero-thumb')?.addEventListener('click', () => {
             document.getElementById('cnr-foto-input')?.click();
         });
         document.getElementById('cnr-foto-input')?.addEventListener('change', async e => {
